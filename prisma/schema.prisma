@@ -1,0 +1,122 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+ 
+generator client {
+  provider = "prisma-client-py"
+}
+ 
+model User {
+  id            String          @id @default(cuid())
+  name          String?
+  email         String          @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  // Optional for WebAuthn support
+  Authenticator Authenticator[]
+  configurations Configuration[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+ 
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+ 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+ 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  @@id([provider, providerAccountId])
+}
+ 
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+ 
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+ 
+  @@id([identifier, token])
+}
+ 
+// Optional for WebAuthn support
+model Authenticator {
+  credentialID         String  @unique
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+ 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  @@id([userId, credentialID])
+}
+
+model Configuration {
+  id               String   @id @default(cuid())
+  fileName         String
+  excelUrl         String
+  wordUrl          String
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generatedExcel   Bytes?   // Field for storing Excel file
+  generatedBulletins Bytes? // Field for storing PDF bulletins
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model GeneratedFile {
+  id            Int              @id @default(autoincrement())
+  filename      String
+  fileType      String           // Type de fichier (Excel, Word, PDF, etc.)
+  fileData      Bytes            // Contenu du fichier (en binaire)
+  isTemplate    Boolean          @default(false) // Indique si le fichier est un modèle
+  templateType  String?          // Type du template, par ex. "Excel" ou "Word"
+  category      String?          // Pour distinguer les niveaux ou groupes (ex: "M1_S1", "BG_ALT_1")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  generatedExcels GeneratedExcel[] // Relation avec les fichiers générés
+}
+
+model GeneratedExcel {
+  id          Int              @id @default(autoincrement())
+  userId      String
+  templateId  Int
+  template    GeneratedFile    @relation(fields: [templateId], references: [id])
+  data        Bytes            // Stocke les données du fichier Excel généré
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model ECTSTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // e.g. "BG_ALT_3"
+  ects        Json     // Stockera le tableau d'ECTS
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
