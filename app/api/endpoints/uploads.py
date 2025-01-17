@@ -1,5 +1,4 @@
 import base64
-import datetime
 from io import BytesIO
 import logging
 import zipfile
@@ -14,79 +13,123 @@ from app.services.prisma_service import get_template_from_prisma
 from app.services.excel_service import process_excel_with_template
 from app.services.word_service import generate_bulletins_from_excel
 from prisma import Prisma
+from datetime import datetime
 
 router = APIRouter()
 
-def calculate_weighted_average(notes_list):
+def calculate_weighted_average(notes):
     """
-    Calcule la moyenne pondérée des notes
-    notes_list: liste des notes de l'UE
+    Calcule la moyenne pondérée des notes avec leurs coefficients.
+    Format des notes : "10 (0,25)" ou "10(0.25)" ou "10"
     """
-    if not notes_list:
-        return ""
-        
     try:
+        if not notes:
+            return 0
+
         total_weighted_sum = 0
         total_coefficients = 0
-        
-        for note in notes_list:
-            if note is None or note == "":
+
+        for note_str in notes:
+            if note_str is None or str(note_str).strip() == "":
                 continue
-                
-            # Convertir en string et nettoyer
-            note_str = str(note).strip()
+
+            note_str = str(note_str).strip()
             
-            try:
-                # Cas des notes multiples séparées par des tirets
-                if " - " in note_str:
-                    sub_notes = note_str.split(" - ")
-                    for sub_note in sub_notes:
-                        sub_note = sub_note.strip()
-                        # Ignorer les mentions "Absent au devoir"
-                        if "Absent" in sub_note:
-                            continue
-                            
-                        if "(" in sub_note and ")" in sub_note:
-                            # Format: "note (coeff)"
-                            note_parts = sub_note.split("(")
-                            note_value = float(note_parts[0].strip().replace(",", "."))
-                            coeff = float(note_parts[1].split(")")[0].strip().replace(",", "."))
-                            total_weighted_sum += note_value * coeff
-                            total_coefficients += coeff
-                        else:
-                            # Format: simple note (coefficient 1)
-                            note_value = float(sub_note.replace(",", "."))
-                            total_weighted_sum += note_value
-                            total_coefficients += 1
-                # Cas d'une seule note avec coefficient
-                elif "(" in note_str and ")" in note_str:
-                    # Ignorer les mentions "Absent au devoir"
-                    if "Absent" not in note_str:
-                        note_parts = note_str.split("(")
-                        note_value = float(note_parts[0].strip().replace(",", "."))
-                        coeff = float(note_parts[1].split(")")[0].strip().replace(",", "."))
-                        total_weighted_sum += note_value * coeff
-                        total_coefficients += coeff
-                else:
-                    # Ignorer les mentions "Absent au devoir"
-                    if "Absent" not in note_str:
-                        note_value = float(note_str.replace(",", "."))
-                        total_weighted_sum += note_value
-                        total_coefficients += 1
-            except (ValueError, IndexError) as e:
-                logging.error(f"Erreur lors du traitement de la note {note_str}: {str(e)}")
-                continue
-        
-        # Calculer la moyenne pondérée
-        if total_coefficients > 0:
-            average = total_weighted_sum / total_coefficients
-            # Arrondir au centième
-            return f"{average:.2f}".replace(".", ",")
-        return ""
-        
+            # Cas d'une note avec coefficient
+            if "(" in note_str:
+                try:
+                    # Extraire la note et le coefficient
+                    parts = note_str.split("(")
+                    note = float(parts[0].strip())
+                    coef = float(parts[1].replace(")", "").replace(",", ".").strip())
+                    
+                    total_weighted_sum += note * coef
+                    total_coefficients += coef
+                except (ValueError, IndexError):
+                    continue
+            
+            # Cas d'une note simple (coefficient 1)
+            else:
+                try:
+                    note = float(note_str)
+                    total_weighted_sum += note
+                    total_coefficients += 1
+                except ValueError:
+                    continue
+
+        if total_coefficients == 0:
+            return 0
+
+        # Arrondir au centième
+        return round(total_weighted_sum / total_coefficients, 2)
+
     except Exception as e:
-        logging.error(f"Erreur dans le calcul de la moyenne: {str(e)}")
-        return ""
+        logging.error(f"Erreur lors du calcul de la moyenne pondérée: {str(e)}")
+        return 0
+    
+
+def calculate_single_note_average(note_str):
+    """
+    Calcule la moyenne pondérée pour une note avec plusieurs coefficients.
+    Format: "10 (0,25) - 15 (0,25) - 10,5 (0,5)" ou "17 - 16 - 17" ou "Absent au devoir (0,25) - 11 (0,25) - 11,5 (0,5)"
+    """
+    try:
+        if not note_str or str(note_str).strip() == "":
+            return "0.00"
+
+        note_str = str(note_str).strip()
+        
+        # Si la note contient des coefficients
+        if "(" in note_str:
+            try:
+                # Séparer les différentes notes
+                notes_parts = note_str.split("-")
+                total_weighted_sum = 0
+                total_coefficients = 0
+                
+                for part in notes_parts:
+                    part = part.strip()
+                    # Ignorer les parties contenant "Absent au devoir"
+                    if "Absent au devoir" in part:
+                        continue
+                        
+                    if "(" in part and ")" in part:
+                        # Extraire la note et le coefficient
+                        note_part = part.split("(")
+                        # Remplacer la virgule par un point dans la note
+                        note = float(note_part[0].strip().replace(",", "."))
+                        # Remplacer la virgule par un point et enlever la parenthèse dans le coefficient
+                        coeff = float(note_part[1].replace(",", ".").replace(")", "").strip())
+                        
+                        total_weighted_sum += note * coeff
+                        total_coefficients += coeff
+                
+                if total_coefficients > 0:
+                    weighted_average = total_weighted_sum / total_coefficients
+                    return f"{weighted_average:.2f}"
+                return "0.00"
+                    
+            except (ValueError, IndexError) as e:
+                logging.error(f"Erreur lors du calcul de la moyenne pondérée: {str(e)}")
+                return "0.00"
+        
+        # Cas d'une note simple ou multiple sans coefficient (ex: "17 - 16 - 17")
+        else:
+            try:
+                # Séparer les notes s'il y en a plusieurs
+                notes = [float(n.strip().replace(",", ".")) for n in note_str.split("-") if n.strip() and "Absent au devoir" not in n]
+                if notes:
+                    # Calculer la moyenne simple (coefficient 1 pour chaque note)
+                    average = sum(notes) / len(notes)
+                    return f"{average:.2f}"
+                return "0.00"
+            except ValueError as e:
+                logging.error(f"Erreur lors du calcul de la note simple: {str(e)}")
+                return "0.00"
+
+    except Exception as e:
+        logging.error(f"Erreur lors du calcul de la note: {str(e)}")
+        return "0.00"
 
 
 def clean_temp_directory(temp_dir: str):
@@ -159,6 +202,7 @@ async def process_excel(excel_url: str, word_url: str, user_id: str):
         logging.error(f"Erreur pendant le traitement : {str(e)}")
         raise HTTPException(status_code=400, detail=f"Erreur : {str(e)}")
 
+
 @router.post("/get-word-template")
 async def get_word_template_endpoint():
     try:
@@ -173,6 +217,9 @@ async def get_word_template_endpoint():
 
         updated_wb = openpyxl.load_workbook(excel_path)
         updated_ws = updated_wb.active
+
+        # Obtenir la date du jour au format français
+        date_du_jour = datetime.utcnow().strftime("%d/%m/%Y")
 
         # Récupérer les titres des UE et matières depuis la première ligne
         ue_matieres = {
@@ -218,31 +265,31 @@ async def get_word_template_endpoint():
 
             # Récupérer les notes pour chaque UE
             ue1_notes = [
-                updated_ws[f"D{row}"].value,
-                updated_ws[f"E{row}"].value,
-                updated_ws[f"F{row}"].value,
-                updated_ws[f"G{row}"].value,
-                updated_ws[f"H{row}"].value
+                str(updated_ws[f"D{row}"].value or ""),
+                str(updated_ws[f"E{row}"].value or ""),
+                str(updated_ws[f"F{row}"].value or ""),
+                str(updated_ws[f"G{row}"].value or ""),
+                str(updated_ws[f"H{row}"].value or "")
             ]
 
             ue2_notes = [
-                updated_ws[f"J{row}"].value,
-                updated_ws[f"K{row}"].value
+                str(updated_ws[f"J{row}"].value or ""),
+                str(updated_ws[f"K{row}"].value or "")
             ]
 
             ue3_notes = [
-                updated_ws[f"M{row}"].value
+                str(updated_ws[f"M{row}"].value or "")
             ]
 
             ue4_notes = [
-                updated_ws[f"O{row}"].value,
-                updated_ws[f"P{row}"].value,
-                updated_ws[f"Q{row}"].value,
-                updated_ws[f"R{row}"].value,
-                updated_ws[f"S{row}"].value
+                str(updated_ws[f"O{row}"].value or ""),
+                str(updated_ws[f"P{row}"].value or ""),
+                str(updated_ws[f"Q{row}"].value or ""),
+                str(updated_ws[f"R{row}"].value or ""),
+                str(updated_ws[f"S{row}"].value or "")
             ]
 
-            # Calculer les moyennes
+            # Calculer les moyennes avec la nouvelle fonction
             moyenne_ue1 = calculate_weighted_average(ue1_notes)
             moyenne_ue2 = calculate_weighted_average(ue2_notes)
             moyenne_ue3 = calculate_weighted_average(ue3_notes)
@@ -256,28 +303,28 @@ async def get_word_template_endpoint():
             word_bytes = base64.b64decode(str(word_template.fileData))
             doc = Document(BytesIO(word_bytes))
 
-            # Préparer les données de l'étudiant
+            # Préparer les données de l'étudiant avec les notes originales
             student_data = {
                 "CodeApprenant": str(updated_ws[f"A{row}"].value or ""),
                 "nomApprenant": str(updated_ws[f"B{row}"].value or ""),
-                "note1": str(updated_ws[f"D{row}"].value or ""),
-                "note2": str(updated_ws[f"E{row}"].value or ""),
-                "note3": str(updated_ws[f"F{row}"].value or ""),
-                "note4": str(updated_ws[f"G{row}"].value or ""),
-                "note5": str(updated_ws[f"H{row}"].value or ""),
-                "note6": str(updated_ws[f"J{row}"].value or ""),
-                "note7": str(updated_ws[f"K{row}"].value or ""),
-                "note8": str(updated_ws[f"M{row}"].value or ""),
-                "note9": str(updated_ws[f"O{row}"].value or ""),
-                "note10": str(updated_ws[f"P{row}"].value or ""),
-                "note11": str(updated_ws[f"Q{row}"].value or ""),
-                "note12": str(updated_ws[f"R{row}"].value or ""),
-                "note13": str(updated_ws[f"S{row}"].value or ""),
-                "moyenne_ue1": str(moyenne_ue1),
-                "moyenne_ue2": str(moyenne_ue2),
-                "moyenne_ue3": str(moyenne_ue3),
-                "moyenne_ue4": str(moyenne_ue4),
-                "moyenne_generale": str(moyenne_generale),
+                "note1": calculate_single_note_average(updated_ws[f"D{row}"].value),
+                "note2": calculate_single_note_average(updated_ws[f"E{row}"].value),
+                "note3": calculate_single_note_average(updated_ws[f"F{row}"].value),
+                "note4": calculate_single_note_average(updated_ws[f"G{row}"].value),
+                "note5": calculate_single_note_average(updated_ws[f"H{row}"].value),
+                "note6": calculate_single_note_average(updated_ws[f"J{row}"].value),
+                "note7": calculate_single_note_average(updated_ws[f"K{row}"].value),
+                "note8": calculate_single_note_average(updated_ws[f"M{row}"].value),
+                "note9": calculate_single_note_average(updated_ws[f"O{row}"].value),
+                "note10": calculate_single_note_average(updated_ws[f"P{row}"].value),
+                "note11": calculate_single_note_average(updated_ws[f"Q{row}"].value),
+                "note12": calculate_single_note_average(updated_ws[f"R{row}"].value),
+                "note13": calculate_single_note_average(updated_ws[f"S{row}"].value),
+                "moyenne_ue1": f"{moyenne_ue1:.2f}",
+                "moyenne_ue2": f"{moyenne_ue2:.2f}",
+                "moyenne_ue3": f"{moyenne_ue3:.2f}",
+                "moyenne_ue4": f"{moyenne_ue4:.2f}",
+                "moyenne_generale": f"{moyenne_generale:.2f}",
                 "dateNaissance": str(updated_ws[f"T{row}"].value or ""),
                 "campus": str(updated_ws[f"U{row}"].value or ""),
                 "groupe": str(updated_ws[f"W{row}"].value or ""),
@@ -286,6 +333,7 @@ async def get_word_template_endpoint():
                 "injustifiee": str(updated_ws[f"Z{row}"].value or ""),
                 "retard": str(updated_ws[f"AA{row}"].value or ""),
                 "APPRECIATIONS": str(updated_ws[f"AB{row}"].value or ""),
+                "datedujour": date_du_jour,
                 **ue_matieres
             }
 
