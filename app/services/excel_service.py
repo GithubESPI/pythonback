@@ -176,7 +176,82 @@ def compare_group_code_types(template_path: str):
         
     except Exception as e:
         logging.error(f"Erreur de comparaison : {str(e)}")
+
+async def process_excel_with_template(excel_url: str, output_dir: str, prisma_template: str, user_id: str):
+    """
+    Processus complet : récupère le template, copie les données, et sauvegarde le fichier.
+    """
+    try:
+        logging.info(f"Traitement du fichier Excel : {excel_url}")
+
+        # Get template and copy cells
+        template_excel_path = await get_template_from_prisma(prisma_template, output_dir)
+        updated_template_path = copy_multiple_cells(excel_url, template_excel_path, output_dir)
         
+        # Get Word URL from Prisma
+        db = Prisma()
+        await db.connect()
+        config = await db.configuration.find_first(
+            where={
+                "excelUrl": excel_url
+            }
+        )
+        word_url = config.wordUrl if config else None
+        
+        if not word_url:
+            await db.disconnect()
+            logging.warning("Pas d'URL Word trouvée dans la configuration")
+            raise ValueError("URL du fichier Word manquante")
+
+        # Fill template with Ypareo data and appreciations
+        updated_template_path = await fill_template_with_ypareo_data(excel_url, updated_template_path, output_dir, word_url)
+        
+        # Lire le fichier Excel source pour obtenir le nom du groupe
+        excel_response = requests.get(excel_url)
+        if excel_response.status_code != 200:
+            raise ValueError("Impossible de télécharger le fichier Excel source")
+            
+        source_excel = BytesIO(excel_response.content)
+        wb = openpyxl.load_workbook(source_excel)
+        ws = wb.active
+        
+        # Lire le nom du groupe depuis la cellule B2
+        group_name = ws["B2"].value
+        logging.info(f"Nom du groupe lu depuis B2: {group_name}")
+        
+        if not group_name:
+            raise ValueError("Nom du groupe non trouvé dans la cellule B2 du fichier Excel")
+            
+        logging.info(f"Recherche du template pour le groupe : {group_name}")
+            
+        # Obtenir l'ID du template correspondant au groupe
+        template_id = await get_template_id_from_group_name(db, group_name)
+
+        # Sauvegarder l'Excel mis à jour dans Prisma
+        with open(updated_template_path, 'rb') as file:
+            file_content = file.read()
+            # Convertir les données binaires en Base64
+            file_content_base64 = base64.b64encode(file_content).decode('utf-8')
+            
+            # Créer l'enregistrement dans Prisma avec les données en Base64
+            generated_excel = await db.generatedexcel.create({
+                'data': file_content_base64,
+                'userId': user_id,
+                'templateId': template_id
+            })
+            
+        await db.disconnect()
+        logging.info(f"Excel sauvegardé dans Prisma avec l'ID : {generated_excel.id}")
+        
+        return {
+            "excel_path": updated_template_path,
+            "excel_id": generated_excel.id
+        }
+
+    except Exception as e:
+        logging.error(f"Erreur pendant le traitement des données : {str(e)}")
+        raise ValueError(f"Erreur lors du traitement du fichier Excel avec template : {str(e)}")
+    
 async def fill_template_with_ypareo_data(source_url: str, template_path: str, output_dir: str, word_url: str) -> str:
     """
     Remplit le template Excel avec les données Yparéo, y compris nomGroupe et etenduGroupe,
@@ -488,83 +563,7 @@ async def fill_template_with_ypareo_data(source_url: str, template_path: str, ou
     except Exception as e:
         logging.error(f"Erreur lors du remplissage des données dans le template : {str(e)}")
         raise ValueError(f"Erreur lors du remplissage des données dans le template : {str(e)}")
-    
 
-async def process_excel_with_template(excel_url: str, output_dir: str, prisma_template: str, user_id: str):
-    """
-    Processus complet : récupère le template, copie les données, et sauvegarde le fichier.
-    """
-    try:
-        logging.info(f"Traitement du fichier Excel : {excel_url}")
-
-        # Get template and copy cells
-        template_excel_path = await get_template_from_prisma(prisma_template, output_dir)
-        updated_template_path = copy_multiple_cells(excel_url, template_excel_path, output_dir)
-        
-        # Get Word URL from Prisma
-        db = Prisma()
-        await db.connect()
-        config = await db.configuration.find_first(
-            where={
-                "excelUrl": excel_url
-            }
-        )
-        word_url = config.wordUrl if config else None
-        
-        if not word_url:
-            await db.disconnect()
-            logging.warning("Pas d'URL Word trouvée dans la configuration")
-            raise ValueError("URL du fichier Word manquante")
-
-        # Fill template with Ypareo data and appreciations
-        updated_template_path = await fill_template_with_ypareo_data(excel_url, updated_template_path, output_dir, word_url)
-        
-        # Lire le fichier Excel source pour obtenir le nom du groupe
-        excel_response = requests.get(excel_url)
-        if excel_response.status_code != 200:
-            raise ValueError("Impossible de télécharger le fichier Excel source")
-            
-        source_excel = BytesIO(excel_response.content)
-        wb = openpyxl.load_workbook(source_excel)
-        ws = wb.active
-        
-        # Lire le nom du groupe depuis la cellule B2
-        group_name = ws["B2"].value
-        logging.info(f"Nom du groupe lu depuis B2: {group_name}")
-        
-        if not group_name:
-            raise ValueError("Nom du groupe non trouvé dans la cellule B2 du fichier Excel")
-            
-        logging.info(f"Recherche du template pour le groupe : {group_name}")
-            
-        # Obtenir l'ID du template correspondant au groupe
-        template_id = await get_template_id_from_group_name(db, group_name)
-
-        # Sauvegarder l'Excel mis à jour dans Prisma
-        with open(updated_template_path, 'rb') as file:
-            file_content = file.read()
-            # Convertir les données binaires en Base64
-            file_content_base64 = base64.b64encode(file_content).decode('utf-8')
-            
-            # Créer l'enregistrement dans Prisma avec les données en Base64
-            generated_excel = await db.generatedexcel.create({
-                'data': file_content_base64,
-                'userId': user_id,
-                'templateId': template_id
-            })
-            
-        await db.disconnect()
-        logging.info(f"Excel sauvegardé dans Prisma avec l'ID : {generated_excel.id}")
-        
-        return {
-            "excel_path": updated_template_path,
-            "excel_id": generated_excel.id
-        }
-
-    except Exception as e:
-        logging.error(f"Erreur pendant le traitement des données : {str(e)}")
-        raise ValueError(f"Erreur lors du traitement du fichier Excel avec template : {str(e)}")
-    
     
 async def match_template_and_get_word(updated_excel_path):
     """
@@ -577,39 +576,64 @@ async def match_template_and_get_word(updated_excel_path):
         updated_wb = openpyxl.load_workbook(updated_excel_path)
         updated_ws = updated_wb.active
 
-        # Récupérer les valeurs des cellules à comparer
-        cells_to_compare = ['C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'K1', 'L1', 'M1', 'N1', 'O1', 'P1', 'Q1', 'R1', 'S1']
-        updated_values = [str(updated_ws[cell].value or '').strip() for cell in cells_to_compare]
+        # Récupérer les valeurs des cellules à comparer pour BG-ALT-S3
+        cells_to_compare_s3 = ['C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'K1', 'L1', 'M1', 'N1', 'O1', 'P1', 'Q1', 'R1', 'S1']
+        updated_values_s3 = [str(updated_ws[cell].value or '').strip() for cell in cells_to_compare_s3]
 
-        # Récupérer le template BG-ALT-S3.xlsx depuis Prisma
-        template_data = await fetch_template_from_prisma("BG-ALT-S3.xlsx")
-        template_wb = openpyxl.load_workbook(BytesIO(template_data))
-        template_ws = template_wb.active
+        # Récupérer les valeurs des cellules à comparer pour BG-ALT-S2
+        cells_to_compare_s2 = ['C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'K1', 'L1', 'M1', 'N1', 'O1', 'P1', 'Q1', 'R1', 'S1', 'T1', 'U1']
+        updated_values_s2 = [str(updated_ws[cell].value or '').strip() for cell in cells_to_compare_s2]
 
-        # Comparer les valeurs
-        template_values = [str(template_ws[cell].value or '').strip() for cell in cells_to_compare]
-        
-        # Vérifier si les valeurs correspondent
-        if updated_values == template_values:
+        # Récupérer les templates depuis Prisma
+        template_s3_data = await fetch_template_from_prisma("BG-ALT-S3.xlsx")
+        template_s2_data = await fetch_template_from_prisma("BG-ALT-S2.xlsx")
+
+        template_s3_wb = openpyxl.load_workbook(BytesIO(template_s3_data))
+        template_s2_wb = openpyxl.load_workbook(BytesIO(template_s2_data))
+
+        template_s3_ws = template_s3_wb.active
+        template_s2_ws = template_s2_wb.active
+
+        # Comparer les valeurs avec BG-ALT-S3
+        template_s3_values = [str(template_s3_ws[cell].value or '').strip() for cell in cells_to_compare_s3]
+        matches_s3 = updated_values_s3 == template_s3_values
+
+        # Comparer les valeurs avec BG-ALT-S2
+        template_s2_values = [str(template_s2_ws[cell].value or '').strip() for cell in cells_to_compare_s2]
+        matches_s2 = updated_values_s2 == template_s2_values
+
+        # Créer le dossier temp s'il n'existe pas
+        temp_dir = "./temp"
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+
+        # Déterminer quel template utiliser
+        if matches_s3:
             logging.info("Template correspondant trouvé: BG-ALT-S3.xlsx")
-            
-            # Créer le dossier temp s'il n'existe pas
-            temp_dir = "./temp"
-            if not os.path.exists(temp_dir):
-                os.makedirs(temp_dir)
-
-            # Récupérer et sauvegarder le modèle Word
             word_data = await fetch_template_from_prisma("modeleBGALT3.docx")
             word_path = os.path.join(temp_dir, "modeleBGALT3.docx")
-            
-            with open(word_path, 'wb') as f:
-                f.write(word_data)
-                
-            logging.info(f"Modèle Word sauvegardé dans {word_path}")
-            return word_path
+            template_name = "modeleBGALT3.docx"
+            ects_template = "BG_ALT_3"
+        elif matches_s2:
+            logging.info("Template correspondant trouvé: BG-ALT-S2.xlsx")
+            word_data = await fetch_template_from_prisma("modeleBGALT2.docx")
+            word_path = os.path.join(temp_dir, "modeleBGALT2.docx")
+            template_name = "modeleBGALT2.docx"
+            ects_template = "BG_ALT_2"  # Make sure this matches exactly with the ECTS data key
         else:
-            logging.warning("Aucune correspondance trouvée avec le template BG-ALT-S3.xlsx")
-            return None
+            logging.warning("Aucune correspondance trouvée avec les templates")
+            raise ValueError("Impossible de déterminer le template à utiliser")
+
+        # Sauvegarder le modèle Word
+        with open(word_path, 'wb') as f:
+            f.write(word_data)
+            
+        logging.info(f"Modèle Word {template_name} sauvegardé dans {word_path}")
+        return {
+            "word_path": word_path,
+            "template_name": template_name,
+            "ects_template": ects_template
+        }
 
     except Exception as e:
         logging.error(f"Erreur lors de la comparaison des templates: {str(e)}")
