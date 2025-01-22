@@ -48,41 +48,43 @@ async def generate_bulletins_from_excel(excel_id: int, output_dir: str):
     try:
         logging.info(f"Début de la génération des bulletins pour l'Excel ID: {excel_id}")
         
-        # Connexion à Prisma
         db = Prisma()
         await db.connect()
-        logging.info("Connexion à Prisma établie")
-
-        # Récupérer l'Excel généré avec son template
+        
+        # Récupérer l'Excel généré
         generated_excel = await db.generatedexcel.find_unique(
             where={"id": excel_id},
             include={"template": True}
         )
         
         if not generated_excel:
-            logging.error(f"Excel généré non trouvé avec l'ID : {excel_id}")
             raise ValueError(f"Excel généré non trouvé avec l'ID : {excel_id}")
 
-        try:
-            # Convertir les données base64 en bytes pour l'Excel
-            excel_bytes = base64.b64decode(str(generated_excel.data))
-            excel_wb = openpyxl.load_workbook(BytesIO(excel_bytes))
-            excel_ws = excel_wb.active
-            logging.info("Fichier Excel chargé avec succès")
-        except Exception as e:
-            logging.error(f"Erreur lors du chargement de l'Excel : {str(e)}")
-            raise
+        # Charger l'Excel
+        excel_bytes = base64.b64decode(str(generated_excel.data))
+        excel_wb = openpyxl.load_workbook(BytesIO(excel_bytes))
+        excel_ws = excel_wb.active
+
+        # Déterminer le template Word à utiliser en fonction du groupe
+        group_name = str(excel_ws["B2"].value or "").strip()
+        template_name = "modeleBGALT3.docx"
+        
+        if "BG-ALT-2" in group_name or "BG-ALT-S2" in group_name:
+            template_name = "modeleBGALT2.docx"
+            logging.info(f"Utilisation du template {template_name} pour le groupe {group_name}")
+        else:
+            logging.info(f"Utilisation du template par défaut {template_name} pour le groupe {group_name}")
 
         # Récupérer le template Word
         word_template = await db.generatedfile.find_first(
             where={
-                "filename": "modeleBGALT3.docx",
+                "filename": template_name,
                 "isTemplate": True
             }
         )
         
         if not word_template:
-            raise ValueError("Template Word non trouvé")
+            raise ValueError(f"Template Word {template_name} non trouvé")
 
         # Créer le dossier pour les bulletins
         bulletins_dir = os.path.join(output_dir, "bulletins")
@@ -90,24 +92,36 @@ async def generate_bulletins_from_excel(excel_id: int, output_dir: str):
             os.makedirs(bulletins_dir)
 
         # Sauvegarder temporairement le template Word
-        temp_word_path = os.path.join(output_dir, "modeleBGALT3.docx")
-        try:
-            # Convertir les données Base64 en bytes
-            word_bytes = base64.b64decode(str(word_template.fileData))
-            
-            # Écrire les données binaires dans le fichier
-            with open(temp_word_path, 'wb') as f:
-                f.write(word_bytes)
-                
-            logging.info(f"Template Word sauvegardé avec succès : {os.path.getsize(temp_word_path)} bytes")
-            
-            # Vérifier que le fichier n'est pas vide
-            if os.path.getsize(temp_word_path) == 0:
-                raise ValueError("Le fichier Word template est vide après sauvegarde")
+        temp_word_path = os.path.join(output_dir, template_name)
+        word_bytes = base64.b64decode(str(word_template.fileData))
+        with open(temp_word_path, 'wb') as f:
+            f.write(word_bytes)
 
-        except Exception as e:
-            logging.error(f"Erreur lors de la sauvegarde du template Word : {str(e)}")
-            raise
+        # Configuration des colonnes selon le template
+        if template_name == "modeleBGALT2.docx":
+            column_config = {
+                "nom_prenom": "B",
+                "date_naissance": "V",
+                "site": "W",
+                "code_groupe": "Y",
+                "nom_groupe": "Z",
+                "abs_justifiees": "AA",
+                "abs_injustifiees": "AB",
+                "retards": "AC",
+                "appreciation": "AD"
+            }
+        else:  # modeleBGALT3.docx
+            column_config = {
+                "nom_prenom": "B",
+                "date_naissance": "T",
+                "site": "U",
+                "code_groupe": "W",
+                "nom_groupe": "X",
+                "abs_justifiees": "Y",
+                "abs_injustifiees": "Z",
+                "retards": "AA",
+                "appreciation": "AB"
+            }
 
         # Pour chaque étudiant, créer un bulletin personnalisé
         for row in range(3, excel_ws.max_row + 1):
@@ -115,20 +129,19 @@ async def generate_bulletins_from_excel(excel_id: int, output_dir: str):
                 continue
 
             try:
-                # Charger le template Word depuis le fichier temporaire
                 doc = Document(temp_word_path)
                 
-                # Préparer les données de l'étudiant
+                # Préparer les données de l'étudiant selon la configuration
                 student_data = {
-                    "NOM_PRENOM": excel_ws[f"B{row}"].value or "",
-                    "DATE_NAISSANCE": excel_ws[f"T{row}"].value or "",
-                    "SITE": excel_ws[f"U{row}"].value or "",
-                    "CODE_GROUPE": excel_ws[f"W{row}"].value or "",
-                    "NOM_GROUPE": excel_ws[f"X{row}"].value or "",
-                    "ABS_JUSTIFIEES": str(excel_ws[f"Y{row}"].value or ""),
-                    "ABS_INJUSTIFIEES": str(excel_ws[f"Z{row}"].value or ""),
-                    "RETARDS": str(excel_ws[f"AA{row}"].value or ""),
-                    "APPRECIATION": excel_ws[f"AB{row}"].value or ""
+                    "NOM_PRENOM": excel_ws[f"{column_config['nom_prenom']}{row}"].value or "",
+                    "DATE_NAISSANCE": excel_ws[f"{column_config['date_naissance']}{row}"].value or "",
+                    "SITE": excel_ws[f"{column_config['site']}{row}"].value or "",
+                    "CODE_GROUPE": excel_ws[f"{column_config['code_groupe']}{row}"].value or "",
+                    "NOM_GROUPE": excel_ws[f"{column_config['nom_groupe']}{row}"].value or "",
+                    "ABS_JUSTIFIEES": str(excel_ws[f"{column_config['abs_justifiees']}{row}"].value or ""),
+                    "ABS_INJUSTIFIEES": str(excel_ws[f"{column_config['abs_injustifiees']}{row}"].value or ""),
+                    "RETARDS": str(excel_ws[f"{column_config['retards']}{row}"].value or ""),
+                    "APPRECIATION": excel_ws[f"{column_config['appreciation']}{row}"].value or ""
                 }
 
                 # Remplacer les variables dans le document
