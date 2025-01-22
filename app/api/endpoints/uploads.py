@@ -10,7 +10,7 @@ import openpyxl
 import requests
 from app.services.ects_service import get_ects_for_template
 from app.services.prisma_service import get_template_from_prisma
-from app.services.excel_service import process_excel_with_template
+from app.services.excel_service import match_template_and_get_word, process_excel_with_template
 from app.services.word_service import generate_bulletins_from_excel
 from prisma import Prisma
 from datetime import datetime
@@ -269,6 +269,18 @@ def calculate_ue_ects(notes, ects_values):
             continue
         return total_ects
     
+def get_total_etat(etat_ue1: str, etat_ue2: str, etat_ue3: str, etat_ue4: str) -> str:
+    """
+    Détermine l'état total en fonction des états des UE.
+    
+    Règles:
+    - "VA" si tous les états des UE sont "VA"
+    - "NV" si au moins un état d'UE est "NV"
+    """
+    if all(etat == "VA" for etat in [etat_ue1, etat_ue2, etat_ue3, etat_ue4]):
+        return "VA"
+    return "NV"
+    
 @router.post("/process-excel")
 async def process_excel(excel_url: str, word_url: str, user_id: str):
     try:
@@ -325,125 +337,199 @@ async def process_excel(excel_url: str, word_url: str, user_id: str):
 @router.post("/get-word-template")
 async def get_word_template_endpoint():
     try:
-        # Connexion à Prisma
         db = Prisma()
         await db.connect()
 
-        # Charger le fichier Excel mis à jour
         excel_path = os.path.join("./temp", "updated_excel.xlsx")
         if not os.path.exists(excel_path):
             raise ValueError("Fichier Excel mis à jour non trouvé dans ./temp")
 
+        # Déterminer le template à utiliser en comparant avec les modèles
+        template_info = await match_template_and_get_word(excel_path)
+        template_name = template_info["template_name"]
+        ects_template = template_info["ects_template"]
+        
+        logging.info(f"Utilisation du template {template_name} avec ECTS {ects_template}")
+
         updated_wb = openpyxl.load_workbook(excel_path)
         updated_ws = updated_wb.active
 
-        # Obtenir la date du jour au format français
         date_du_jour = datetime.utcnow().strftime("%d/%m/%Y")
 
-        # Récupérer les titres des UE et matières depuis la première ligne
-        ue_matieres = {
-            "UE1_Title": str(updated_ws["C1"].value or ""),
-            "matiere1": str(updated_ws["D1"].value or ""),
-            "matiere2": str(updated_ws["E1"].value or ""),
-            "matiere3": str(updated_ws["F1"].value or ""),
-            "matiere4": str(updated_ws["G1"].value or ""),
-            "matiere5": str(updated_ws["H1"].value or ""),
-            "UE2_Title": str(updated_ws["I1"].value or ""),
-            "matiere6": str(updated_ws["J1"].value or ""),
-            "matiere7": str(updated_ws["K1"].value or ""),
-            "UE3_Title": str(updated_ws["L1"].value or ""),
-            "matiere8": str(updated_ws["M1"].value or ""),
-            "UE4_Title": str(updated_ws["N1"].value or ""),
-            "matiere9": str(updated_ws["O1"].value or ""),
-            "matiere10": str(updated_ws["P1"].value or ""),
-            "matiere11": str(updated_ws["Q1"].value or ""),
-            "matiere12": str(updated_ws["R1"].value or ""),
-            "matiere13": str(updated_ws["S1"].value or "")
-        }
+        # Mapping des colonnes selon le modèle
+        if template_name == "modeleBGALT2.docx":
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or ""),
+                "matiere4": str(updated_ws["G1"].value or ""),
+                "UE2_Title": str(updated_ws["H1"].value or ""),
+                "matiere5": str(updated_ws["I1"].value or ""),
+                "matiere6": str(updated_ws["J1"].value or ""),
+                "matiere7": str(updated_ws["K1"].value or ""),
+                "UE3_Title": str(updated_ws["L1"].value or ""),
+                "matiere8": str(updated_ws["M1"].value or ""),
+                "UE4_Title": str(updated_ws["N1"].value or ""),
+                "matiere9": str(updated_ws["O1"].value or ""),
+                "matiere10": str(updated_ws["P1"].value or ""),
+                "matiere11": str(updated_ws["Q1"].value or ""),
+                "matiere12": str(updated_ws["R1"].value or ""),
+                "matiere13": str(updated_ws["S1"].value or ""),
+                "matiere14": str(updated_ws["T1"].value or ""),
+                "matiere15": str(updated_ws["U1"].value or "")
+            }
+        else:  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or ""),
+                "matiere4": str(updated_ws["G1"].value or ""),
+                "matiere5": str(updated_ws["H1"].value or ""),
+                "UE2_Title": str(updated_ws["I1"].value or ""),
+                "matiere6": str(updated_ws["J1"].value or ""),
+                "matiere7": str(updated_ws["K1"].value or ""),
+                "UE3_Title": str(updated_ws["L1"].value or ""),
+                "matiere8": str(updated_ws["M1"].value or ""),
+                "UE4_Title": str(updated_ws["N1"].value or ""),
+                "matiere9": str(updated_ws["O1"].value or ""),
+                "matiere10": str(updated_ws["P1"].value or ""),
+                "matiere11": str(updated_ws["Q1"].value or ""),
+                "matiere12": str(updated_ws["R1"].value or ""),
+                "matiere13": str(updated_ws["S1"].value or "")
+            }
 
         # Récupérer le template Word
         word_template = await db.generatedfile.find_first(
             where={
-                "filename": "modeleBGALT3.docx",
+                "filename": template_name,
                 "isTemplate": True
             }
         )
         
         if not word_template:
-            raise ValueError("Template Word modeleBGALT3.docx non trouvé dans Prisma")
+            raise ValueError(f"Template Word {template_name} non trouvé dans Prisma")
 
-        # Récupérer les ECTS pour BG_ALT_3
-        ects_data = await get_ects_for_template("BG_ALT_3")
+        # Récupérer les ECTS selon le template
+        ects_data = await get_ects_for_template(ects_template)
+        logging.info(f"ECTS data for {ects_template}: {ects_data}")
+        
+        if template_name == "modeleBGALT2.docx":
+            required_ects = [f"ECTS{i}" for i in range(1, 16)]  # ECTS1 à ECTS15
+            missing_ects = [ects for ects in required_ects if ects not in ects_data]
+            if missing_ects:
+                raise ValueError(f"Missing ECTS values for {template_name}: {missing_ects}")
+        else:  # modeleBGALT3.docx
+            required_ects = [f"ECTS{i}" for i in range(1, 14)]  # ECTS1 à ECTS13
+            missing_ects = [ects for ects in required_ects if ects not in ects_data]
+            if missing_ects:
+                raise ValueError(f"Missing ECTS values for {template_name}: {missing_ects}")
 
-        # Créer le dossier bulletins s'il n'existe pas
         bulletins_dir = os.path.join("./temp", "bulletins")
         if not os.path.exists(bulletins_dir):
             os.makedirs(bulletins_dir)
 
-        # Pour chaque étudiant, créer un bulletin personnalisé
         for row in range(3, updated_ws.max_row + 1):
             if not updated_ws[f"B{row}"].value:
                 continue
 
-            # Récupérer les notes pour chaque UE
-            # Récupérer les notes pour chaque UE
-            ue1_notes = [
-                calculate_single_note_average(updated_ws[f"D{row}"].value),
-                calculate_single_note_average(updated_ws[f"E{row}"].value),
-                calculate_single_note_average(updated_ws[f"F{row}"].value),
-                calculate_single_note_average(updated_ws[f"G{row}"].value),
-                calculate_single_note_average(updated_ws[f"H{row}"].value)
-            ]
+            # Récupérer les notes selon le modèle
+            if template_name == "modeleBGALT2.docx":
+                ue1_notes = [
+                    calculate_single_note_average(updated_ws[f"D{row}"].value),
+                    calculate_single_note_average(updated_ws[f"E{row}"].value),
+                    calculate_single_note_average(updated_ws[f"F{row}"].value),
+                    calculate_single_note_average(updated_ws[f"G{row}"].value)
+                ]
+                ue2_notes = [
+                    calculate_single_note_average(updated_ws[f"I{row}"].value),
+                    calculate_single_note_average(updated_ws[f"J{row}"].value),
+                    calculate_single_note_average(updated_ws[f"K{row}"].value)
+                ]
+                ue3_notes = [
+                    calculate_single_note_average(updated_ws[f"M{row}"].value)
+                ]
+                ue4_notes = [
+                    calculate_single_note_average(updated_ws[f"O{row}"].value),
+                    calculate_single_note_average(updated_ws[f"P{row}"].value),
+                    calculate_single_note_average(updated_ws[f"Q{row}"].value),
+                    calculate_single_note_average(updated_ws[f"R{row}"].value),
+                    calculate_single_note_average(updated_ws[f"S{row}"].value),
+                    calculate_single_note_average(updated_ws[f"T{row}"].value),
+                    calculate_single_note_average(updated_ws[f"U{row}"].value)
+                ]
+            else:  # modeleBGALT3.docx
+                ue1_notes = [
+                    calculate_single_note_average(updated_ws[f"D{row}"].value),
+                    calculate_single_note_average(updated_ws[f"E{row}"].value),
+                    calculate_single_note_average(updated_ws[f"F{row}"].value),
+                    calculate_single_note_average(updated_ws[f"G{row}"].value),
+                    calculate_single_note_average(updated_ws[f"H{row}"].value)
+                ]
+                ue2_notes = [
+                    calculate_single_note_average(updated_ws[f"J{row}"].value),
+                    calculate_single_note_average(updated_ws[f"K{row}"].value)
+                ]
+                ue3_notes = [
+                    calculate_single_note_average(updated_ws[f"M{row}"].value)
+                ]
+                ue4_notes = [
+                    calculate_single_note_average(updated_ws[f"O{row}"].value),
+                    calculate_single_note_average(updated_ws[f"P{row}"].value),
+                    calculate_single_note_average(updated_ws[f"Q{row}"].value),
+                    calculate_single_note_average(updated_ws[f"R{row}"].value),
+                    calculate_single_note_average(updated_ws[f"S{row}"].value)
+                ]
 
-            ue2_notes = [
-                calculate_single_note_average(updated_ws[f"J{row}"].value),
-                calculate_single_note_average(updated_ws[f"K{row}"].value)
-            ]
+            # Calculer les moyennes avec ECTS
+            if template_name == "modeleBGALT2.docx":
+                moyUE1 = calculate_ects_weighted_average(ue1_notes, [
+                    ects_data["ECTS1"], ects_data["ECTS2"], ects_data["ECTS3"],
+                    ects_data["ECTS4"]
+                ])
+                moyUE2 = calculate_ects_weighted_average(ue2_notes, [
+                    ects_data["ECTS5"], ects_data["ECTS6"], ects_data["ECTS7"]
+                ])
+                moyUE3 = calculate_ects_weighted_average(ue3_notes, [
+                    ects_data["ECTS8"]
+                ])
+                # Fix: Only use ECTS9 through ECTS15 for BG-ALT-S2
+                moyUE4 = calculate_ects_weighted_average(ue4_notes[:7], [  # Limit to 7 notes
+                    ects_data["ECTS9"], ects_data["ECTS10"], ects_data["ECTS11"],
+                    ects_data["ECTS12"], ects_data["ECTS13"], ects_data["ECTS14"],
+                    ects_data["ECTS15"]
+                ])
+            else:  # modeleBGALT3.docx
+                moyUE1 = calculate_ects_weighted_average(ue1_notes, [
+                    ects_data["ECTS1"], ects_data["ECTS2"], ects_data["ECTS3"],
+                    ects_data["ECTS4"], ects_data["ECTS5"]
+                ])
+                moyUE2 = calculate_ects_weighted_average(ue2_notes, [
+                    ects_data["ECTS6"], ects_data["ECTS7"]
+                ])
+                moyUE3 = calculate_ects_weighted_average(ue3_notes, [
+                    ects_data["ECTS8"]
+                ])
+                moyUE4 = calculate_ects_weighted_average(ue4_notes, [
+                    ects_data["ECTS9"], ects_data["ECTS10"], ects_data["ECTS11"],
+                    ects_data["ECTS12"], ects_data["ECTS13"]
+                ])
 
-            ue3_notes = [
-                calculate_single_note_average(updated_ws[f"M{row}"].value)
-            ]
-
-            ue4_notes = [
-                calculate_single_note_average(updated_ws[f"O{row}"].value),
-                calculate_single_note_average(updated_ws[f"P{row}"].value),
-                calculate_single_note_average(updated_ws[f"Q{row}"].value),
-                calculate_single_note_average(updated_ws[f"R{row}"].value),
-                calculate_single_note_average(updated_ws[f"S{row}"].value)
-            ]
-            # Calculer les moyennes avec la nouvelle fonction
-            moyUE1 = calculate_ects_weighted_average(ue1_notes, [
-                ects_data["ECTS1"], ects_data["ECTS2"], ects_data["ECTS3"],
-                ects_data["ECTS4"], ects_data["ECTS5"]
-            ])
-
-            moyUE2 = calculate_ects_weighted_average(ue2_notes, [
-                ects_data["ECTS6"], ects_data["ECTS7"]
-            ])
-
-            moyUE3 = calculate_ects_weighted_average(ue3_notes, [
-                ects_data["ECTS8"]
-            ])
-
-            moyUE4 = calculate_ects_weighted_average(ue4_notes, [
-                ects_data["ECTS9"], ects_data["ECTS10"], ects_data["ECTS11"],
-                ects_data["ECTS12"], ects_data["ECTS13"]
-            ])
-                        
-            # Calculer la moyenne générale
-            all_notes = ue1_notes + ue2_notes + ue3_notes + ue4_notes
-            moyenne_generale = calculate_weighted_average(all_notes)
-            
             # Calculer les totaux d'ECTS pour chaque UE
-            ects_ue1 = int(ects_data["ECTS1"]) + int(ects_data["ECTS2"]) + int(ects_data["ECTS3"]) + int(ects_data["ECTS4"]) + int(ects_data["ECTS5"])
-            ects_ue2 = int(ects_data["ECTS6"]) + int(ects_data["ECTS7"])
-            ects_ue3 = int(ects_data["ECTS8"])
-            ects_ue4 = int(ects_data["ECTS9"]) + int(ects_data["ECTS10"]) + int(ects_data["ECTS11"]) + int(ects_data["ECTS12"]) + int(ects_data["ECTS13"])
-            
-            # Calculer le total général des ECTS
+            if template_name == "modeleBGALT2.docx":
+                ects_ue1 = sum(int(ects_data[f"ECTS{i}"]) for i in range(1, 5))
+                ects_ue2 = sum(int(ects_data[f"ECTS{i}"]) for i in range(5, 8))
+                ects_ue3 = int(ects_data["ECTS8"])
+                ects_ue4 = sum(int(ects_data[f"ECTS{i}"]) for i in range(9, 16))
+            else:  # modeleBGALT3.docx
+                ects_ue1 = sum(int(ects_data[f"ECTS{i}"]) for i in range(1, 6))
+                ects_ue2 = sum(int(ects_data[f"ECTS{i}"]) for i in range(6, 8))
+                ects_ue3 = int(ects_data["ECTS8"])
+                ects_ue4 = sum(int(ects_data[f"ECTS{i}"]) for i in range(9, 14))
+
             moyenne_ects = ects_ue1 + ects_ue2 + ects_ue3 + ects_ue4
-            
-            # Calculer la moyenne générale pondérée par les ECTS
+
             try:
                 if moyenne_ects > 0:
                     moyenne_ponderee = (
@@ -458,131 +544,156 @@ async def get_word_template_endpoint():
             except (ValueError, TypeError, ZeroDivisionError):
                 moyenne_ponderee_str = ""
 
-            # Charger le template Word pour chaque étudiant
             word_bytes = base64.b64decode(str(word_template.fileData))
             doc = Document(BytesIO(word_bytes))
-            
-            # Préparer les données de l'étudiant avec les notes originales et les ECTS
-            # Préparer les données de l'étudiant avec les notes originales et les ECTS
-            student_data = {
-                "CodeApprenant": str(updated_ws[f"A{row}"].value or ""),
-                "nomApprenant": str(updated_ws[f"B{row}"].value or ""),
-                "note1": calculate_single_note_average(updated_ws[f"D{row}"].value),
-                "note2": calculate_single_note_average(updated_ws[f"E{row}"].value),
-                "note3": calculate_single_note_average(updated_ws[f"F{row}"].value),
-                "note4": calculate_single_note_average(updated_ws[f"G{row}"].value),
-                "note5": calculate_single_note_average(updated_ws[f"H{row}"].value),
-                "note6": calculate_single_note_average(updated_ws[f"J{row}"].value),
-                "note7": calculate_single_note_average(updated_ws[f"K{row}"].value),
-                "note8": calculate_single_note_average(updated_ws[f"M{row}"].value),
-                "note9": calculate_single_note_average(updated_ws[f"O{row}"].value),
-                "note10": calculate_single_note_average(updated_ws[f"P{row}"].value),
-                "note11": calculate_single_note_average(updated_ws[f"Q{row}"].value),
-                "note12": calculate_single_note_average(updated_ws[f"R{row}"].value),
-                "note13": calculate_single_note_average(updated_ws[f"S{row}"].value),
-                "moyUE1": moyUE1,
-                "moyUE2": moyUE2,
-                "moyUE3": moyUE3,
-                "moyUE4": moyUE4,
-                "moyenne": moyenne_ponderee_str,
-                "dateNaissance": str(updated_ws[f"T{row}"].value or ""),
-                "campus": str(updated_ws[f"U{row}"].value or ""),
-                "groupe": str(updated_ws[f"W{row}"].value or ""),
-                "etendugroupe": str(updated_ws[f"X{row}"].value or ""),
-                "justifiee": str(updated_ws[f"Y{row}"].value or ""),
-                "injustifiee": str(updated_ws[f"Z{row}"].value or ""),
-                "retard": str(updated_ws[f"AA{row}"].value or ""),
-                "APPRECIATIONS": str(updated_ws[f"AB{row}"].value or ""),
-                "datedujour": date_du_jour,
-                "ECTSUE1": str(ects_ue1),
-                "ECTSUE2": str(ects_ue2),
-                "ECTSUE3": str(ects_ue3),
-                "ECTSUE4": str(ects_ue4),
-                "moyenneECTS": str(moyenne_ects),
-                **ue_matieres,
-                **ects_data  # Ajouter les valeurs ECTS
-            }
-            
-            # Calculer d'abord les états pour chaque note
-            etats = {
-                "etat1": get_etat(student_data["note1"]),
-                "etat2": get_etat(student_data["note2"]),
-                "etat3": get_etat(student_data["note3"]),
-                "etat4": get_etat(student_data["note4"]),
-                "etat5": get_etat(student_data["note5"]),
-                "etat6": get_etat(student_data["note6"]),
-                "etat7": get_etat(student_data["note7"]),
-                "etat8": get_etat(student_data["note8"]),
-                "etat9": get_etat(student_data["note9"]),
-                "etat10": get_etat(student_data["note10"]),
-                "etat11": get_etat(student_data["note11"]),
-                "etat12": get_etat(student_data["note12"]),
-                "etat13": get_etat(student_data["note13"])
-            }
-            
-            # Ajouter les états au student_data
-            student_data.update(etats)
-            
-            # Calculer les états des UE
-            student_data.update({
-                "etatUE1": get_etat_ue([
-                    etats["etat1"],
-                    etats["etat2"],
-                    etats["etat3"],
-                    etats["etat4"],
-                    etats["etat5"]
-                ], student_data["moyUE1"]),
-                "etatUE2": get_etat_ue([
-                    etats["etat6"],
-                    etats["etat7"]
-                ], student_data["moyUE2"]),
-                "etatUE3": get_etat_ue([
-                    etats["etat8"]
-                ], student_data["moyUE3"]),
-                "etatUE4": get_etat_ue([
-                    etats["etat9"],
-                    etats["etat10"],
-                    etats["etat11"],
-                    etats["etat12"],
-                    etats["etat13"]
-                ], student_data["moyUE4"])
-            })
 
-            
-            # Fonction pour ajuster les ECTS en fonction des notes
+            # Préparer les données de l'étudiant selon le template
+            if template_name == "modeleBGALT2.docx":
+                student_data = {
+                    "CodeApprenant": str(updated_ws[f"A{row}"].value or ""),
+                    "nomApprenant": str(updated_ws[f"B{row}"].value or ""),
+                    "note1": calculate_single_note_average(updated_ws[f"D{row}"].value),
+                    "note2": calculate_single_note_average(updated_ws[f"E{row}"].value),
+                    "note3": calculate_single_note_average(updated_ws[f"F{row}"].value),
+                    "note4": calculate_single_note_average(updated_ws[f"G{row}"]. value),
+                    "note5": calculate_single_note_average(updated_ws[f"I{row}"].value),
+                    "note6": calculate_single_note_average(updated_ws[f"J{row}"].value),
+                    "note7": calculate_single_note_average(updated_ws[f"K{row}"].value),
+                    "note8": calculate_single_note_average(updated_ws[f"M{row}"].value),
+                    "note9": calculate_single_note_average(updated_ws[f"O{row}"].value),
+                    "note10": calculate_single_note_average(updated_ws[f"P{row}"].value),
+                    "note11": calculate_single_note_average(updated_ws[f"Q{row}"].value),
+                    "note12": calculate_single_note_average(updated_ws[f"R{row}"].value),
+                    "note13": calculate_single_note_average(updated_ws[f"S{row}"].value),
+                    "note14": calculate_single_note_average(updated_ws[f"T{row}"].value),
+                    "note15": calculate_single_note_average(updated_ws[f"U{row}"].value),
+                    "moyUE1": moyUE1,
+                    "moyUE2": moyUE2,
+                    "moyUE3": moyUE3,
+                    "moyUE4": moyUE4,
+                    "moyenne": moyenne_ponderee_str,
+                    "dateNaissance": str(updated_ws[f"V{row}"].value or ""),
+                    "campus": str(updated_ws[f"W{row}"].value or ""),
+                    "groupe": str(updated_ws[f"Y{row}"].value or ""),
+                    "etendugroupe": str(updated_ws[f"Z{row}"].value or ""),
+                    "justifiee": str(updated_ws[f"AA{row}"].value or ""),
+                    "injustifiee": str(updated_ws[f"AB{row}"].value or ""),
+                    "retard": str(updated_ws[f"AC{row}"].value or ""),
+                    "APPRECIATIONS": str(updated_ws[f"AD{row}"].value or ""),
+                    "datedujour": date_du_jour,
+                    "ECTSUE1": str(ects_ue1),
+                    "ECTSUE2": str(ects_ue2),
+                    "ECTSUE3": str(ects_ue3),
+                    "ECTSUE4": str(ects_ue4),
+                    "moyenneECTS": str(moyenne_ects),
+                    **ue_matieres,
+                    **ects_data
+                }
+            else:  # modeleBGALT3.docx
+                student_data = {
+                    "CodeApprenant": str(updated_ws[f"A{row}"].value or ""),
+                    "nomApprenant": str(updated_ws[f"B{row}"].value or ""),
+                    "note1": calculate_single_note_average(updated_ws[f"D{row}"].value),
+                    "note2": calculate_single_note_average(updated_ws[f"E{row}"].value),
+                    "note3": calculate_single_note_average(updated_ws[f"F{row}"].value),
+                    "note4": calculate_single_note_average(updated_ws[f"G{row}"].value),
+                    "note5": calculate_single_note_average(updated_ws[f"H{row}"].value),
+                    "note6": calculate_single_note_average(updated_ws[f"J{row}"].value),
+                    "note7": calculate_single_note_average(updated_ws[f"K{row}"].value),
+                    "note8": calculate_single_note_average(updated_ws[f"M{row}"].value),
+                    "note9": calculate_single_note_average(updated_ws[f"O{row}"].value),
+                    "note10": calculate_single_note_average(updated_ws[f"P{row}"].value),
+                    "note11": calculate_single_note_average(updated_ws[f"Q{row}"].value),
+                    "note12": calculate_single_note_average(updated_ws[f"R{row}"].value),
+                    "note13": calculate_single_note_average(updated_ws[f"S{row}"].value),
+                    "moyUE1": moyUE1,
+                    "moyUE2": moyUE2,
+                    "moyUE3": moyUE3,
+                    "moyUE4": moyUE4,
+                    "moyenne": moyenne_ponderee_str,
+                    "dateNaissance": str(updated_ws[f"T{row}"].value or ""),
+                    "campus": str(updated_ws[f"U{row}"].value or ""),
+                    "groupe": str(updated_ws[f"W{row}"].value or ""),
+                    "etendugroupe": str(updated_ws[f"X{row}"].value or ""),
+                    "justifiee": str(updated_ws[f"Y{row}"].value or ""),
+                    "injustifiee": str(updated_ws[f"Z{row}"].value or ""),
+                    "retard": str(updated_ws[f"AA{row}"].value or ""),
+                    "APPRECIATIONS": str(updated_ws[f"AB{row}"].value or ""),
+                    "datedujour": date_du_jour,
+                    "ECTSUE1": str(ects_ue1),
+                    "ECTSUE2": str(ects_ue2),
+                    "ECTSUE3": str(ects_ue3),
+                    "ECTSUE4": str(ects_ue4),
+                    "moyenneECTS": str(moyenne_ects),
+                    **ue_matieres,
+                    **ects_data
+                }
+
+            # Calculer les états pour chaque note
+            etats = {}
+            if template_name == "modeleBGALT2.docx":
+                for i in range(1, 16):
+                    etats[f"etat{i}"] = get_etat(student_data[f"note{i}"])
+            else:
+                for i in range(1, 14):
+                    etats[f"etat{i}"] = get_etat(student_data[f"note{i}"])
+
+            student_data.update(etats)
+
+            # Calculer les états des UE
+            if template_name == "modeleBGALT2.docx":
+                etats_ue = {
+                    "etatUE1": get_etat_ue([etats[f"etat{i}"] for i in range(1, 5)], student_data["moyUE1"]),
+                    "etatUE2": get_etat_ue([etats[f"etat{i}"] for i in range(5, 8)], student_data["moyUE2"]),
+                    "etatUE3": get_etat_ue([etats["etat8"]], student_data["moyUE3"]),
+                    "etatUE4": get_etat_ue([etats[f"etat{i}"] for i in range(9, 16)], student_data["moyUE4"])
+                }
+            else:
+                etats_ue = {
+                    "etatUE1": get_etat_ue([etats[f"etat{i}"] for i in range(1, 6)], student_data["moyUE1"]),
+                    "etatUE2": get_etat_ue([etats[f"etat{i}"] for i in range(6, 8)], student_data["moyUE2"]),
+                    "etatUE3": get_etat_ue([etats["etat8"]], student_data["moyUE3"]),
+                    "etatUE4": get_etat_ue([etats[f"etat{i}"] for i in range(9, 14)], student_data["moyUE4"])
+                }
+
+            student_data.update(etats_ue)
+
+            # Calculer le total des états
+            student_data["totaletat"] = get_total_etat(
+                etats_ue["etatUE1"],
+                etats_ue["etatUE2"],
+                etats_ue["etatUE3"],
+                etats_ue["etatUE4"]
+            )
+
+            # Ajuster les ECTS en fonction des notes
             def adjust_ects(note_str, original_ects):
                 try:
                     note = float(note_str) if note_str else 0
                     return "0" if note < 8 else str(original_ects)
                 except (ValueError, TypeError):
                     return str(original_ects)
-                
+
             # Ajuster les ECTS pour chaque matière
-            student_data.update({
-                "ECTS1": adjust_ects(student_data["note1"], ects_data["ECTS1"]),
-                "ECTS2": adjust_ects(student_data["note2"], ects_data["ECTS2"]),
-                "ECTS3": adjust_ects(student_data["note3"], ects_data["ECTS3"]),
-                "ECTS4": adjust_ects(student_data["note4"], ects_data["ECTS4"]),
-                "ECTS5": adjust_ects(student_data["note5"], ects_data["ECTS5"]),
-                "ECTS6": adjust_ects(student_data["note6"], ects_data["ECTS6"]),
-                "ECTS7": adjust_ects(student_data["note7"], ects_data["ECTS7"]),
-                "ECTS8": adjust_ects(student_data["note8"], ects_data["ECTS8"]),
-                "ECTS9": adjust_ects(student_data["note9"], ects_data["ECTS9"]),
-                "ECTS10": adjust_ects(student_data["note10"], ects_data["ECTS10"]),
-                "ECTS11": adjust_ects(student_data["note11"], ects_data["ECTS11"]),
-                "ECTS12": adjust_ects(student_data["note12"], ects_data["ECTS12"]),
-                "ECTS13": adjust_ects(student_data["note13"], ects_data["ECTS13"])
-            })
+            if template_name == "modeleBGALT2.docx":
+                for i in range(1, 16):
+                    student_data[f"ECTS{i}"] = adjust_ects(student_data[f"note{i}"], ects_data[f"ECTS{i}"])
+            else:
+                for i in range(1, 14):
+                    student_data[f"ECTS{i}"] = adjust_ects(student_data[f"note{i}"], ects_data[f"ECTS{i}"])
 
+            # Recalculer les totaux d'ECTS avec les ECTS ajustés
+            if template_name == "modeleBGALT2.docx":
+                student_data["ECTSUE1"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(1, 5)))
+                student_data["ECTSUE2"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(5, 8)))
+                student_data["ECTSUE3"] = student_data["ECTS8"]
+                student_data["ECTSUE4"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(9, 16)))
+            else:
+                student_data["ECTSUE1"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(1, 6)))
+                student_data["ECTSUE2"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(6, 8)))
+                student_data["ECTSUE3"] = student_data["ECTS8"]
+                student_data["ECTSUE4"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(9, 14)))
 
-
-            # Calculer les totaux d'ECTS pour chaque UE avec les ECTS ajustés
-            student_data["ECTSUE1"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(1, 6)))
-            student_data["ECTSUE2"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(6, 8)))
-            student_data["ECTSUE3"] = student_data["ECTS8"]
-            student_data["ECTSUE4"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(9, 14)))
-
-            # Calculer le total des ECTS
             student_data["moyenneECTS"] = str(sum(int(student_data[f"ECTSUE{i}"]) for i in range(1, 5)))
 
             # Remplacer les variables dans le document
