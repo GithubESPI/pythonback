@@ -75,7 +75,7 @@ def calculate_single_note_average(note_str):
     """
     try:
         if not note_str or str(note_str).strip() == "":
-            return "0.00"
+            return ""
 
         note_str = str(note_str).strip()
         
@@ -107,11 +107,11 @@ def calculate_single_note_average(note_str):
                 if total_coefficients > 0:
                     weighted_average = total_weighted_sum / total_coefficients
                     return f"{weighted_average:.2f}"
-                return "0.00"
+                return ""
                     
             except (ValueError, IndexError) as e:
                 logging.error(f"Erreur lors du calcul de la moyenne pondérée: {str(e)}")
-                return "0.00"
+                return ""
         
         # Cas d'une note simple ou multiple sans coefficient (ex: "17 - 16 - 17")
         else:
@@ -122,16 +122,120 @@ def calculate_single_note_average(note_str):
                     # Calculer la moyenne simple (coefficient 1 pour chaque note)
                     average = sum(notes) / len(notes)
                     return f"{average:.2f}"
-                return "0.00"
+                return ""
             except ValueError as e:
                 logging.error(f"Erreur lors du calcul de la note simple: {str(e)}")
-                return "0.00"
+                return ""
 
     except Exception as e:
         logging.error(f"Erreur lors du calcul de la note: {str(e)}")
-        return "0.00"
+        return ""
+
+def get_etat(note_str: str) -> str:
+    """
+    Détermine l'état en fonction de la note.
+    - Si note >= 10 ou vide : ""
+    - Si 8 <= note < 10 : "C"
+    - Si note < 8 : "R"
+    """
+    if not note_str or str(note_str).strip() == "":
+        return ""
+        
+    try:
+        note = float(str(note_str).replace(",", "."))
+        if note >= 10:
+            return ""
+        elif 8 <= note < 10:
+            return "C"
+        else:
+            return "R"
+    except (ValueError, TypeError):
+        return ""
+
+def get_etat_ue(etats: list, moyenne_ue: str = "") -> str:
+    """
+    Détermine l'état d'une UE en fonction des états des notes et de la moyenne de l'UE.
+    
+    Règles:
+    - "VA" si:
+        * tous les états sont vides ET moyenne_ue >= 10
+        * OU au moins un état "C", les autres vides, ET moyenne_ue >= 10
+    - "NV" si:
+        * au moins un état "R"
+        * OU moyenne_ue < 8
+        * OU (au moins un état "C" ET moyenne_ue < 10)
+    """
+    try:
+        moyenne = float(moyenne_ue.replace(",", ".")) if moyenne_ue else 0
+    except (ValueError, TypeError):
+        moyenne = 0
+
+    has_r = False
+    has_c = False
+    all_empty = True
+
+    for etat in etats:
+        if etat == "R":
+            has_r = True
+        elif etat == "C":
+            has_c = True
+        if etat != "":
+            all_empty = False
+
+    # Cas où il y a au moins un R ou moyenne < 8
+    if has_r or moyenne < 8:
+        return "NV"
+    
+    # Cas où tous les états sont vides
+    if all_empty and moyenne >= 10:
+        return "VA"
+    
+    # Cas où il y a au moins un C
+    if has_c:
+        return "VA" if moyenne >= 10 else "NV"
+    
+    # Cas par défaut
+    return "NV"
 
 
+def calculate_ects_weighted_average(notes, ects_values):
+    """
+    Calcule la moyenne pondérée par les ECTS.
+    Les notes avec ECTS = 0 sont complètement ignorées dans le calcul.
+    """
+    try:
+        total_weighted_sum = 0
+        total_ects = 0
+
+        for note_str, ects_str in zip(notes, ects_values):
+            if not note_str:
+                continue
+
+            try:
+                note = float(str(note_str).replace(",", "."))
+                ects = int(ects_str)
+
+                # Si la note est inférieure à 8, l'ECTS devient 0
+                if note < 8:
+                    ects = 0
+
+                # Ne prendre en compte que les notes avec ECTS > 0
+                if ects > 0:
+                    total_weighted_sum += note * ects
+                    total_ects += ects
+
+            except (ValueError, TypeError):
+                continue
+
+        if total_ects == 0:
+            return ""
+
+        return f"{(total_weighted_sum / total_ects):.2f}"
+
+    except Exception as e:
+        logging.error(f"Erreur lors du calcul de la moyenne pondérée ECTS: {str(e)}")
+        return ""
+    
 def clean_temp_directory(temp_dir: str):
     for filename in os.listdir(temp_dir):
         file_path = os.path.join(temp_dir, filename)
@@ -151,6 +255,20 @@ def clean_except_specific_file(directory: str, keep_filename: str):
             except Exception as e:
                 logging.error(f"Erreur lors de la suppression de {file_path}: {str(e)}")
 
+
+# Calculer les totaux d'ECTS pour chaque UE en tenant compte de la règle des notes < 8
+def calculate_ue_ects(notes, ects_values):
+    total_ects = 0
+    for note_str, ects_str in zip(notes, ects_values):
+        try:
+            note = float(note_str) if note_str else 0
+            ects = int(ects_str)
+            if note >= 8:  # On ne compte les ECTS que si la note est >= 8
+                total_ects += ects
+        except (ValueError, TypeError):
+            continue
+        return total_ects
+    
 @router.post("/process-excel")
 async def process_excel(excel_url: str, word_url: str, user_id: str):
     try:
@@ -203,6 +321,7 @@ async def process_excel(excel_url: str, word_url: str, user_id: str):
         raise HTTPException(status_code=400, detail=f"Erreur : {str(e)}")
 
 
+
 @router.post("/get-word-template")
 async def get_word_template_endpoint():
     try:
@@ -253,6 +372,9 @@ async def get_word_template_endpoint():
         if not word_template:
             raise ValueError("Template Word modeleBGALT3.docx non trouvé dans Prisma")
 
+        # Récupérer les ECTS pour BG_ALT_3
+        ects_data = await get_ects_for_template("BG_ALT_3")
+
         # Créer le dossier bulletins s'il n'existe pas
         bulletins_dir = os.path.join("./temp", "bulletins")
         if not os.path.exists(bulletins_dir):
@@ -264,46 +386,84 @@ async def get_word_template_endpoint():
                 continue
 
             # Récupérer les notes pour chaque UE
+            # Récupérer les notes pour chaque UE
             ue1_notes = [
-                str(updated_ws[f"D{row}"].value or ""),
-                str(updated_ws[f"E{row}"].value or ""),
-                str(updated_ws[f"F{row}"].value or ""),
-                str(updated_ws[f"G{row}"].value or ""),
-                str(updated_ws[f"H{row}"].value or "")
+                calculate_single_note_average(updated_ws[f"D{row}"].value),
+                calculate_single_note_average(updated_ws[f"E{row}"].value),
+                calculate_single_note_average(updated_ws[f"F{row}"].value),
+                calculate_single_note_average(updated_ws[f"G{row}"].value),
+                calculate_single_note_average(updated_ws[f"H{row}"].value)
             ]
 
             ue2_notes = [
-                str(updated_ws[f"J{row}"].value or ""),
-                str(updated_ws[f"K{row}"].value or "")
+                calculate_single_note_average(updated_ws[f"J{row}"].value),
+                calculate_single_note_average(updated_ws[f"K{row}"].value)
             ]
 
             ue3_notes = [
-                str(updated_ws[f"M{row}"].value or "")
+                calculate_single_note_average(updated_ws[f"M{row}"].value)
             ]
 
             ue4_notes = [
-                str(updated_ws[f"O{row}"].value or ""),
-                str(updated_ws[f"P{row}"].value or ""),
-                str(updated_ws[f"Q{row}"].value or ""),
-                str(updated_ws[f"R{row}"].value or ""),
-                str(updated_ws[f"S{row}"].value or "")
+                calculate_single_note_average(updated_ws[f"O{row}"].value),
+                calculate_single_note_average(updated_ws[f"P{row}"].value),
+                calculate_single_note_average(updated_ws[f"Q{row}"].value),
+                calculate_single_note_average(updated_ws[f"R{row}"].value),
+                calculate_single_note_average(updated_ws[f"S{row}"].value)
             ]
-
             # Calculer les moyennes avec la nouvelle fonction
-            moyenne_ue1 = calculate_weighted_average(ue1_notes)
-            moyenne_ue2 = calculate_weighted_average(ue2_notes)
-            moyenne_ue3 = calculate_weighted_average(ue3_notes)
-            moyenne_ue4 = calculate_weighted_average(ue4_notes)
-            
+            moyUE1 = calculate_ects_weighted_average(ue1_notes, [
+                ects_data["ECTS1"], ects_data["ECTS2"], ects_data["ECTS3"],
+                ects_data["ECTS4"], ects_data["ECTS5"]
+            ])
+
+            moyUE2 = calculate_ects_weighted_average(ue2_notes, [
+                ects_data["ECTS6"], ects_data["ECTS7"]
+            ])
+
+            moyUE3 = calculate_ects_weighted_average(ue3_notes, [
+                ects_data["ECTS8"]
+            ])
+
+            moyUE4 = calculate_ects_weighted_average(ue4_notes, [
+                ects_data["ECTS9"], ects_data["ECTS10"], ects_data["ECTS11"],
+                ects_data["ECTS12"], ects_data["ECTS13"]
+            ])
+                        
             # Calculer la moyenne générale
             all_notes = ue1_notes + ue2_notes + ue3_notes + ue4_notes
             moyenne_generale = calculate_weighted_average(all_notes)
+            
+            # Calculer les totaux d'ECTS pour chaque UE
+            ects_ue1 = int(ects_data["ECTS1"]) + int(ects_data["ECTS2"]) + int(ects_data["ECTS3"]) + int(ects_data["ECTS4"]) + int(ects_data["ECTS5"])
+            ects_ue2 = int(ects_data["ECTS6"]) + int(ects_data["ECTS7"])
+            ects_ue3 = int(ects_data["ECTS8"])
+            ects_ue4 = int(ects_data["ECTS9"]) + int(ects_data["ECTS10"]) + int(ects_data["ECTS11"]) + int(ects_data["ECTS12"]) + int(ects_data["ECTS13"])
+            
+            # Calculer le total général des ECTS
+            moyenne_ects = ects_ue1 + ects_ue2 + ects_ue3 + ects_ue4
+            
+            # Calculer la moyenne générale pondérée par les ECTS
+            try:
+                if moyenne_ects > 0:
+                    moyenne_ponderee = (
+                        float(moyUE1 or 0) * ects_ue1 +
+                        float(moyUE2 or 0) * ects_ue2 +
+                        float(moyUE3 or 0) * ects_ue3 +
+                        float(moyUE4 or 0) * ects_ue4
+                    ) / moyenne_ects
+                    moyenne_ponderee_str = f"{moyenne_ponderee:.2f}"
+                else:
+                    moyenne_ponderee_str = ""
+            except (ValueError, TypeError, ZeroDivisionError):
+                moyenne_ponderee_str = ""
 
             # Charger le template Word pour chaque étudiant
             word_bytes = base64.b64decode(str(word_template.fileData))
             doc = Document(BytesIO(word_bytes))
-
-            # Préparer les données de l'étudiant avec les notes originales
+            
+            # Préparer les données de l'étudiant avec les notes originales et les ECTS
+            # Préparer les données de l'étudiant avec les notes originales et les ECTS
             student_data = {
                 "CodeApprenant": str(updated_ws[f"A{row}"].value or ""),
                 "nomApprenant": str(updated_ws[f"B{row}"].value or ""),
@@ -320,11 +480,11 @@ async def get_word_template_endpoint():
                 "note11": calculate_single_note_average(updated_ws[f"Q{row}"].value),
                 "note12": calculate_single_note_average(updated_ws[f"R{row}"].value),
                 "note13": calculate_single_note_average(updated_ws[f"S{row}"].value),
-                "moyenne_ue1": f"{moyenne_ue1:.2f}",
-                "moyenne_ue2": f"{moyenne_ue2:.2f}",
-                "moyenne_ue3": f"{moyenne_ue3:.2f}",
-                "moyenne_ue4": f"{moyenne_ue4:.2f}",
-                "moyenne_generale": f"{moyenne_generale:.2f}",
+                "moyUE1": moyUE1,
+                "moyUE2": moyUE2,
+                "moyUE3": moyUE3,
+                "moyUE4": moyUE4,
+                "moyenne": moyenne_ponderee_str,
                 "dateNaissance": str(updated_ws[f"T{row}"].value or ""),
                 "campus": str(updated_ws[f"U{row}"].value or ""),
                 "groupe": str(updated_ws[f"W{row}"].value or ""),
@@ -334,8 +494,96 @@ async def get_word_template_endpoint():
                 "retard": str(updated_ws[f"AA{row}"].value or ""),
                 "APPRECIATIONS": str(updated_ws[f"AB{row}"].value or ""),
                 "datedujour": date_du_jour,
-                **ue_matieres
+                "ECTSUE1": str(ects_ue1),
+                "ECTSUE2": str(ects_ue2),
+                "ECTSUE3": str(ects_ue3),
+                "ECTSUE4": str(ects_ue4),
+                "moyenneECTS": str(moyenne_ects),
+                **ue_matieres,
+                **ects_data  # Ajouter les valeurs ECTS
             }
+            
+            # Calculer d'abord les états pour chaque note
+            etats = {
+                "etat1": get_etat(student_data["note1"]),
+                "etat2": get_etat(student_data["note2"]),
+                "etat3": get_etat(student_data["note3"]),
+                "etat4": get_etat(student_data["note4"]),
+                "etat5": get_etat(student_data["note5"]),
+                "etat6": get_etat(student_data["note6"]),
+                "etat7": get_etat(student_data["note7"]),
+                "etat8": get_etat(student_data["note8"]),
+                "etat9": get_etat(student_data["note9"]),
+                "etat10": get_etat(student_data["note10"]),
+                "etat11": get_etat(student_data["note11"]),
+                "etat12": get_etat(student_data["note12"]),
+                "etat13": get_etat(student_data["note13"])
+            }
+            
+            # Ajouter les états au student_data
+            student_data.update(etats)
+            
+            # Calculer les états des UE
+            student_data.update({
+                "etatUE1": get_etat_ue([
+                    etats["etat1"],
+                    etats["etat2"],
+                    etats["etat3"],
+                    etats["etat4"],
+                    etats["etat5"]
+                ], student_data["moyUE1"]),
+                "etatUE2": get_etat_ue([
+                    etats["etat6"],
+                    etats["etat7"]
+                ], student_data["moyUE2"]),
+                "etatUE3": get_etat_ue([
+                    etats["etat8"]
+                ], student_data["moyUE3"]),
+                "etatUE4": get_etat_ue([
+                    etats["etat9"],
+                    etats["etat10"],
+                    etats["etat11"],
+                    etats["etat12"],
+                    etats["etat13"]
+                ], student_data["moyUE4"])
+            })
+
+            
+            # Fonction pour ajuster les ECTS en fonction des notes
+            def adjust_ects(note_str, original_ects):
+                try:
+                    note = float(note_str) if note_str else 0
+                    return "0" if note < 8 else str(original_ects)
+                except (ValueError, TypeError):
+                    return str(original_ects)
+                
+            # Ajuster les ECTS pour chaque matière
+            student_data.update({
+                "ECTS1": adjust_ects(student_data["note1"], ects_data["ECTS1"]),
+                "ECTS2": adjust_ects(student_data["note2"], ects_data["ECTS2"]),
+                "ECTS3": adjust_ects(student_data["note3"], ects_data["ECTS3"]),
+                "ECTS4": adjust_ects(student_data["note4"], ects_data["ECTS4"]),
+                "ECTS5": adjust_ects(student_data["note5"], ects_data["ECTS5"]),
+                "ECTS6": adjust_ects(student_data["note6"], ects_data["ECTS6"]),
+                "ECTS7": adjust_ects(student_data["note7"], ects_data["ECTS7"]),
+                "ECTS8": adjust_ects(student_data["note8"], ects_data["ECTS8"]),
+                "ECTS9": adjust_ects(student_data["note9"], ects_data["ECTS9"]),
+                "ECTS10": adjust_ects(student_data["note10"], ects_data["ECTS10"]),
+                "ECTS11": adjust_ects(student_data["note11"], ects_data["ECTS11"]),
+                "ECTS12": adjust_ects(student_data["note12"], ects_data["ECTS12"]),
+                "ECTS13": adjust_ects(student_data["note13"], ects_data["ECTS13"])
+            })
+
+
+
+            # Calculer les totaux d'ECTS pour chaque UE avec les ECTS ajustés
+            student_data["ECTSUE1"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(1, 6)))
+            student_data["ECTSUE2"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(6, 8)))
+            student_data["ECTSUE3"] = student_data["ECTS8"]
+            student_data["ECTSUE4"] = str(sum(int(student_data[f"ECTS{i}"]) for i in range(9, 14)))
+
+            # Calculer le total des ECTS
+            student_data["moyenneECTS"] = str(sum(int(student_data[f"ECTSUE{i}"]) for i in range(1, 5)))
 
             # Remplacer les variables dans le document
             for paragraph in doc.paragraphs:
