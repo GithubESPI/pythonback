@@ -144,7 +144,7 @@ def get_etat(note_str: str) -> str:
     try:
         note = float(str(note_str).replace(",", "."))
         if note >= 10:
-            return ""
+            return "VA"
         elif 8 <= note < 10:
             return "C"
         else:
@@ -357,7 +357,28 @@ async def get_word_template_endpoint():
         date_du_jour = datetime.utcnow().strftime("%d/%m/%Y")
 
         # Mapping des colonnes selon le modèle
-        if template_name == "modeleBGALT2.docx":
+        if template_name == "modeleBGALT1.docx":
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or ""),
+                "UE2_Title": str(updated_ws["G1"].value or ""),
+                "matiere4": str(updated_ws["H1"].value or ""),
+                "matiere5": str(updated_ws["I1"].value or ""),
+                "UE3_Title": str(updated_ws["J1"].value or ""),
+                "matiere6": str(updated_ws["K1"].value or ""),
+                "UE4_Title": str(updated_ws["L1"].value or ""),
+                "matiere7": str(updated_ws["M1"].value or ""),
+                "matiere8": str(updated_ws["N1"].value or ""),
+                "matiere9": str(updated_ws["O1"].value or ""),
+                "matiere10": str(updated_ws["P1"].value or ""),
+                "matiere11": str(updated_ws["Q1"].value or ""),
+                "matiere12": str(updated_ws["R1"].value or ""),
+                "matiere13": str(updated_ws["S1"].value or ""),
+                "matiere14": str(updated_ws["T1"].value or ""),
+            }
+        elif template_name == "modeleBGALT2.docx":  # modeleBGALT3.docx
             ue_matieres = {
                 "UE1_Title": str(updated_ws["C1"].value or ""),
                 "matiere1": str(updated_ws["D1"].value or ""),
@@ -379,7 +400,7 @@ async def get_word_template_endpoint():
                 "matiere14": str(updated_ws["T1"].value or ""),
                 "matiere15": str(updated_ws["U1"].value or "")
             }
-        else:  # modeleBGALT3.docx
+        elif template_name == "modeleBGALT3.docx":  # modeleBGALT3.docx
             ue_matieres = {
                 "UE1_Title": str(updated_ws["C1"].value or ""),
                 "matiere1": str(updated_ws["D1"].value or ""),
@@ -399,6 +420,162 @@ async def get_word_template_endpoint():
                 "matiere12": str(updated_ws["R1"].value or ""),
                 "matiere13": str(updated_ws["S1"].value or "")
             }
+        elif template_name == "modeleBGALT4.docx":  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or ""),
+                "UE2_Title": str(updated_ws["G1"].value or ""),
+                "matiere4": str(updated_ws["H1"].value or ""),
+                "matiere5": str(updated_ws["I1"].value or ""),
+                "matiere6": str(updated_ws["J1"].value or ""),
+                "matiere7": str(updated_ws["K1"].value or ""),
+                "UE3_Title": str(updated_ws["L1"].value or ""),
+                "matiere8": str(updated_ws["M1"].value or ""),
+                "UE4_Title": str(updated_ws["N1"].value or ""),
+                "matiere9": str(updated_ws["O1"].value or ""),
+                "matiere10": str(updated_ws["P1"].value or ""),
+                "matiere11": str(updated_ws["Q1"].value or ""),
+                "matiere12": str(updated_ws["R1"].value or ""),
+                "matiere13": str(updated_ws["S1"].value or "")
+            }
+        elif template_name == "modeleBGALT5.docx":  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or ""),
+                "UE2_Title": str(updated_ws["G1"].value or ""),
+                "matiere4": str(updated_ws["H1"].value or ""),
+                "matiere5": str(updated_ws["I1"].value or ""),
+                "matiere6": str(updated_ws["J1"].value or ""),
+                "UE3_Title": str(updated_ws["K1"].value or ""),
+                "matiere7": str(updated_ws["L1"].value or ""),
+                "UE4_Title": str(updated_ws["M1"].value or ""),
+                "matiere8": str(updated_ws["N1"].value or ""),
+                "matiere9": str(updated_ws["O1"].value or ""),
+                "matiere10": str(updated_ws["P1"].value or ""),
+                "matiere11": str(updated_ws["Q1"].value or ""),
+                "matiere12": str(updated_ws["R1"].value or ""),
+                "matiere13": str(updated_ws["S1"].value or ""),
+                "matiere14": str(updated_ws["T1"].value or "")
+            }
+        elif template_name == "modeleBGALT6.docx":  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "UE2_Title": str(updated_ws["F1"].value or ""),
+                "matiere3": str(updated_ws["G1"].value or ""),
+                "matiere4": str(updated_ws["H1"].value or ""),
+                "UE3_Title": str(updated_ws["I1"].value or ""),
+                "matiere5": str(updated_ws["J1"].value or ""),
+                "matiere6": str(updated_ws["K1"].value or ""),
+                "UE4_Title": str(updated_ws["L1"].value or ""),
+                "matiere7": str(updated_ws["M1"].value or ""),
+                "matiere8": str(updated_ws["N1"].value or ""),
+                "matiere9": str(updated_ws["O1"].value or ""),
+                "matiere10": str(updated_ws["P1"].value or ""),
+                "matiere11": str(updated_ws["Q1"].value or ""),
+                "matiere12": str(updated_ws["R1"].value or "")
+            }
+        elif template_name == "modeleBGTP1.docx":
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or ""),
+                "matiere4 ": str(updated_ws["G1"].value or ""),
+                "matiere5": str(updated_ws["H1"].value or ""),
+                "matiere6": str(updated_ws["I1"].value or ""),
+                "matiere7": str(updated_ws["J1"].value or ""),
+                "UE2_Title": str(updated_ws["K1"].value or ""),
+                "matiere8": str(updated_ws["L1"].value or ""),
+                "matiere9": str(updated_ws["M1"].value or ""),
+                "matiere10": str(updated_ws["N1"].value or ""),
+                "matiere11": str(updated_ws["O1"].value or ""),
+                "matiere12": str(updated_ws["P1"].value or ""),
+                "matiere13": str(updated_ws["Q1"].value or ""),
+                "matiere14": str(updated_ws["R1"].value or ""),
+                "matiere15": str(updated_ws["S1"].value or ""),
+                "matiere14": str(updated_ws["T1"].value or ""),
+                "matiere15": str(updated_ws["U1"].value or ""),
+                "matiere16": str(updated_ws["V1"].value or ""),
+                "matiere17": str(updated_ws["W1"].value or ""),
+                "matiere18": str(updated_ws["Z1"].value or ""),
+                "matiere19": str(updated_ws["Y1"].value or ""),
+                "matiere20": str(updated_ws["Z1"].value or ""),
+                "matiere21": str(updated_ws["AA1"].value or ""),
+                "matiere22": str(updated_ws["AB1"].value or ""),
+            }
+        elif template_name == "modeleBGTP2.docx":  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or "")
+            }
+        elif template_name == "modeleBGTP3.docx":  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or ""),
+                "UE2_Title": str(updated_ws["G1"].value or ""),
+                "matiere4 ": str(updated_ws["H1"].value or ""),
+                "matiere5": str(updated_ws["I1"].value or ""),
+                "UE3_Title": str(updated_ws["J1"].value or ""),
+                "matiere6": str(updated_ws["K1"].value or ""),
+                "UE4_Title": str(updated_ws["L1"].value or ""),
+                "matiere7": str(updated_ws["M1"].value or ""),
+                "matiere8": str(updated_ws["N1"].value or ""),
+                "matiere9": str(updated_ws["O1"].value or ""),
+                "matiere10": str(updated_ws["P1"].value or ""),
+                "matiere11": str(updated_ws["Q1"].value or ""),
+                "matiere12": str(updated_ws["R1"].value or ""),
+                "matiere13": str(updated_ws["S1"].value or ""),
+                "matiere14": str(updated_ws["T1"].value or ""),
+                "matiere15": str(updated_ws["U1"].value or ""),
+                "matiere16": str(updated_ws["V1"].value or "")
+            }
+        elif template_name == "modeleBGTP4.docx":  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or "")
+            }
+        elif template_name == "modeleBGTP5.docx":  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or ""),
+                "UE2_Title": str(updated_ws["G1"].value or ""),
+                "matiere4 ": str(updated_ws["H1"].value or ""),
+                "matiere5": str(updated_ws["I1"].value or ""),
+                "UE3_Title": str(updated_ws["J1"].value or ""),
+                "matiere6": str(updated_ws["K1"].value or ""),
+                "UE4_Title": str(updated_ws["L1"].value or ""),
+                "matiere7": str(updated_ws["M1"].value or ""),
+                "matiere8": str(updated_ws["N1"].value or ""),
+                "matiere9": str(updated_ws["O1"].value or ""),
+                "matiere10": str(updated_ws["P1"].value or ""),
+                "matiere11": str(updated_ws["Q1"].value or ""),
+                "matiere12": str(updated_ws["R1"].value or ""),
+                "matiere13": str(updated_ws["S1"].value or ""),
+                "matiere14": str(updated_ws["T1"].value or ""),
+                "matiere15": str(updated_ws["U1"].value or ""),
+                "matiere16": str(updated_ws["V1"].value or ""),
+                "matiere17": str(updated_ws["W1"].value or ""),
+                "matiere18": str(updated_ws["Z1"].value or ""),
+                "matiere19": str(updated_ws["Y1"].value or "")
+            }
+        elif template_name == "modeleBGTP6.docx":  # modeleBGALT3.docx
+            ue_matieres = {
+                "UE1_Title": str(updated_ws["C1"].value or ""),
+                "matiere1": str(updated_ws["D1"].value or ""),
+                "matiere2": str(updated_ws["E1"].value or ""),
+                "matiere3": str(updated_ws["F1"].value or "")
+            }
 
         # Récupérer le template Word
         word_template = await db.generatedfile.find_first(
@@ -415,12 +592,17 @@ async def get_word_template_endpoint():
         ects_data = await get_ects_for_template(ects_template)
         logging.info(f"ECTS data for {ects_template}: {ects_data}")
         
-        if template_name == "modeleBGALT2.docx":
+        if template_name == "modeleBGALT1.docx":
+            required_ects = [f"ECTS{i}" for i in range(1, 15)]  # ECTS1 à ECTS15
+            missing_ects = [ects for ects in required_ects if ects not in ects_data]
+            if missing_ects:
+                raise ValueError(f"Missing ECTS values for {template_name}: {missing_ects}")
+        elif template_name == "modeleBGALT2.docx":
             required_ects = [f"ECTS{i}" for i in range(1, 16)]  # ECTS1 à ECTS15
             missing_ects = [ects for ects in required_ects if ects not in ects_data]
             if missing_ects:
                 raise ValueError(f"Missing ECTS values for {template_name}: {missing_ects}")
-        else:  # modeleBGALT3.docx
+        elif template_name == "modeleBGALT3.docx":  # modeleBGALT3.docx
             required_ects = [f"ECTS{i}" for i in range(1, 14)]  # ECTS1 à ECTS13
             missing_ects = [ects for ects in required_ects if ects not in ects_data]
             if missing_ects:
@@ -435,7 +617,31 @@ async def get_word_template_endpoint():
                 continue
 
             # Récupérer les notes selon le modèle
-            if template_name == "modeleBGALT2.docx":
+            if template_name == "modeleBGALT1.docx":
+                ue1_notes = [
+                    calculate_single_note_average(updated_ws[f"D{row}"].value),
+                    calculate_single_note_average(updated_ws[f"E{row}"].value),
+                    calculate_single_note_average(updated_ws[f"F{row}"].value),
+                    
+                ]
+                ue2_notes = [
+                    calculate_single_note_average(updated_ws[f"H{row}"].value),
+                    calculate_single_note_average(updated_ws[f"I{row}"].value),
+                ]
+                ue3_notes = [
+                    calculate_single_note_average(updated_ws[f"K{row}"].value)
+                ]
+                ue4_notes = [
+                    calculate_single_note_average(updated_ws[f"M{row}"].value),
+                    calculate_single_note_average(updated_ws[f"N{row}"].value),
+                    calculate_single_note_average(updated_ws[f"O{row}"].value),
+                    calculate_single_note_average(updated_ws[f"P{row}"].value),
+                    calculate_single_note_average(updated_ws[f"Q{row}"].value),
+                    calculate_single_note_average(updated_ws[f"R{row}"].value),
+                    calculate_single_note_average(updated_ws[f"S{row}"].value),
+                    calculate_single_note_average(updated_ws[f"T{row}"].value),
+                ]
+            elif template_name == "modeleBGALT2.docx":  # modeleBGALT3.docx
                 ue1_notes = [
                     calculate_single_note_average(updated_ws[f"D{row}"].value),
                     calculate_single_note_average(updated_ws[f"E{row}"].value),
@@ -459,7 +665,7 @@ async def get_word_template_endpoint():
                     calculate_single_note_average(updated_ws[f"T{row}"].value),
                     calculate_single_note_average(updated_ws[f"U{row}"].value)
                 ]
-            else:  # modeleBGALT3.docx
+            elif template_name == "modeleBGALT3.docx":  # modeleBGALT3.docx
                 ue1_notes = [
                     calculate_single_note_average(updated_ws[f"D{row}"].value),
                     calculate_single_note_average(updated_ws[f"E{row}"].value),
@@ -483,7 +689,22 @@ async def get_word_template_endpoint():
                 ]
 
             # Calculer les moyennes avec ECTS
-            if template_name == "modeleBGALT2.docx":
+            if template_name == "modeleBGALT1.docx":
+                moyUE1 = calculate_ects_weighted_average(ue1_notes, [
+                    ects_data["ECTS1"], ects_data["ECTS2"], ects_data["ECTS3"],
+                ])
+                moyUE2 = calculate_ects_weighted_average(ue2_notes, [
+                    ects_data["ECTS4"], ects_data["ECTS5"]
+                ])
+                moyUE3 = calculate_ects_weighted_average(ue3_notes, [
+                    ects_data["ECTS6"]
+                ])
+                # Fix: Only use ECTS9 through ECTS15 for BG-ALT-S2
+                moyUE4 = calculate_ects_weighted_average(ue4_notes[:7], [  # Limit to 7 notes
+                    ects_data["ECTS7"], ects_data["ECTS8"], ects_data["ECTS9"], ects_data["ECTS10"], ects_data["ECTS11"],
+                    ects_data["ECTS12"], ects_data["ECTS13"], ects_data["ECTS14"]
+                ])
+            elif template_name == "modeleBGALT2.docx":
                 moyUE1 = calculate_ects_weighted_average(ue1_notes, [
                     ects_data["ECTS1"], ects_data["ECTS2"], ects_data["ECTS3"],
                     ects_data["ECTS4"]
@@ -500,7 +721,7 @@ async def get_word_template_endpoint():
                     ects_data["ECTS12"], ects_data["ECTS13"], ects_data["ECTS14"],
                     ects_data["ECTS15"]
                 ])
-            else:  # modeleBGALT3.docx
+            elif template_name == "modeleBGALT3.docx":  # modeleBGALT3.docx
                 moyUE1 = calculate_ects_weighted_average(ue1_notes, [
                     ects_data["ECTS1"], ects_data["ECTS2"], ects_data["ECTS3"],
                     ects_data["ECTS4"], ects_data["ECTS5"]
@@ -517,12 +738,17 @@ async def get_word_template_endpoint():
                 ])
 
             # Calculer les totaux d'ECTS pour chaque UE
-            if template_name == "modeleBGALT2.docx":
+            if template_name == "modeleBGALT1.docx":
+                ects_ue1 = sum(int(ects_data[f"ECTS{i}"]) for i in range(1, 4))
+                ects_ue2 = sum(int(ects_data[f"ECTS{i}"]) for i in range(4, 6))
+                ects_ue3 = int(ects_data["ECTS6"])
+                ects_ue4 = sum(int(ects_data[f"ECTS{i}"]) for i in range(7, 15))
+            elif template_name == "modeleBGALT2.docx":
                 ects_ue1 = sum(int(ects_data[f"ECTS{i}"]) for i in range(1, 5))
                 ects_ue2 = sum(int(ects_data[f"ECTS{i}"]) for i in range(5, 8))
                 ects_ue3 = int(ects_data["ECTS8"])
                 ects_ue4 = sum(int(ects_data[f"ECTS{i}"]) for i in range(9, 16))
-            else:  # modeleBGALT3.docx
+            elif template_name == "modeleBGALT3.docx":  # modeleBGALT3.docx
                 ects_ue1 = sum(int(ects_data[f"ECTS{i}"]) for i in range(1, 6))
                 ects_ue2 = sum(int(ects_data[f"ECTS{i}"]) for i in range(6, 8))
                 ects_ue3 = int(ects_data["ECTS8"])
@@ -548,7 +774,47 @@ async def get_word_template_endpoint():
             doc = Document(BytesIO(word_bytes))
 
             # Préparer les données de l'étudiant selon le template
-            if template_name == "modeleBGALT2.docx":
+            if template_name == "modeleBGALT1.docx":
+                student_data = {
+                    "CodeApprenant": str(updated_ws[f"A{row}"].value or ""),
+                    "nomApprenant": str(updated_ws[f"B{row}"].value or ""),
+                    "note1": calculate_single_note_average(updated_ws[f"D{row}"].value),
+                    "note2": calculate_single_note_average(updated_ws[f"E{row}"].value),
+                    "note3": calculate_single_note_average(updated_ws[f"F{row}"].value),
+                    "note4": calculate_single_note_average(updated_ws[f"H{row}"]. value),
+                    "note5": calculate_single_note_average(updated_ws[f"I{row}"].value),
+                    "note6": calculate_single_note_average(updated_ws[f"K{row}"].value),
+                    "note7": calculate_single_note_average(updated_ws[f"M{row}"].value),
+                    "note8": calculate_single_note_average(updated_ws[f"N{row}"].value),
+                    "note9": calculate_single_note_average(updated_ws[f"O{row}"].value),
+                    "note10": calculate_single_note_average(updated_ws[f"P{row}"].value),
+                    "note11": calculate_single_note_average(updated_ws[f"Q{row}"].value),
+                    "note12": calculate_single_note_average(updated_ws[f"R{row}"].value),
+                    "note13": calculate_single_note_average(updated_ws[f"S{row}"].value),
+                    "note14": calculate_single_note_average(updated_ws[f"T{row}"].value),
+                    "moyUE1": moyUE1,
+                    "moyUE2": moyUE2,
+                    "moyUE3": moyUE3,
+                    "moyUE4": moyUE4,
+                    "moyenne": moyenne_ponderee_str,
+                    "dateNaissance": str(updated_ws[f"U{row}"].value or ""),
+                    "campus": str(updated_ws[f"V{row}"].value or ""),
+                    "groupe": str(updated_ws[f"X{row}"].value or ""),
+                    "etendugroupe": str(updated_ws[f"Y{row}"].value or ""),
+                    "justifiee": str(updated_ws[f"Z{row}"].value or ""),
+                    "injustifiee": str(updated_ws[f"AA{row}"].value or ""),
+                    "retard": str(updated_ws[f"AB{row}"].value or ""),
+                    "APPRECIATIONS": str(updated_ws[f"AC{row}"].value or ""),
+                    "datedujour": date_du_jour,
+                    "ECTSUE1": str(ects_ue1),
+                    "ECTSUE2": str(ects_ue2),
+                    "ECTSUE3": str(ects_ue3),
+                    "ECTSUE4": str(ects_ue4),
+                    "moyenneECTS": str(moyenne_ects),
+                    **ue_matieres,
+                    **ects_data
+                }
+            elif template_name == "modeleBGALT2.docx":
                 student_data = {
                     "CodeApprenant": str(updated_ws[f"A{row}"].value or ""),
                     "nomApprenant": str(updated_ws[f"B{row}"].value or ""),
@@ -589,7 +855,7 @@ async def get_word_template_endpoint():
                     **ue_matieres,
                     **ects_data
                 }
-            else:  # modeleBGALT3.docx
+            elif template_name == "modeleBGALT2.docx":  # modeleBGALT3.docx
                 student_data = {
                     "CodeApprenant": str(updated_ws[f"A{row}"].value or ""),
                     "nomApprenant": str(updated_ws[f"B{row}"].value or ""),
@@ -631,24 +897,34 @@ async def get_word_template_endpoint():
 
             # Calculer les états pour chaque note
             etats = {}
-            if template_name == "modeleBGALT2.docx":
+            if template_name == "modeleBGALT1.docx":
+                for i in range(1, 15):
+                    etats[f"etat{i}"] = get_etat(student_data[f"note{i}"])
+            elif template_name == "modeleBGALT2.docx":
                 for i in range(1, 16):
                     etats[f"etat{i}"] = get_etat(student_data[f"note{i}"])
-            else:
+            elif template_name == "modeleBGALT3.docx":
                 for i in range(1, 14):
                     etats[f"etat{i}"] = get_etat(student_data[f"note{i}"])
 
             student_data.update(etats)
 
             # Calculer les états des UE
-            if template_name == "modeleBGALT2.docx":
+            if template_name == "modeleBGALT1.docx":
+                etats_ue = {
+                    "etatUE1": get_etat_ue([etats[f"etat{i}"] for i in range(1, 4)], student_data["moyUE1"]),
+                    "etatUE2": get_etat_ue([etats[f"etat{i}"] for i in range(4, 6)], student_data["moyUE2"]),
+                    "etatUE3": get_etat_ue([etats["etat6"]], student_data["moyUE3"]),
+                    "etatUE4": get_etat_ue([etats[f"etat{i}"] for i in range(7, 15)], student_data["moyUE4"])
+                }
+            elif template_name == "modeleBGALT2.docx":
                 etats_ue = {
                     "etatUE1": get_etat_ue([etats[f"etat{i}"] for i in range(1, 5)], student_data["moyUE1"]),
                     "etatUE2": get_etat_ue([etats[f"etat{i}"] for i in range(5, 8)], student_data["moyUE2"]),
                     "etatUE3": get_etat_ue([etats["etat8"]], student_data["moyUE3"]),
                     "etatUE4": get_etat_ue([etats[f"etat{i}"] for i in range(9, 16)], student_data["moyUE4"])
                 }
-            else:
+            elif template_name == "modeleBGALT3.docx":
                 etats_ue = {
                     "etatUE1": get_etat_ue([etats[f"etat{i}"] for i in range(1, 6)], student_data["moyUE1"]),
                     "etatUE2": get_etat_ue([etats[f"etat{i}"] for i in range(6, 8)], student_data["moyUE2"]),
@@ -697,11 +973,20 @@ async def get_word_template_endpoint():
             student_data["moyenneECTS"] = str(sum(int(student_data[f"ECTSUE{i}"]) for i in range(1, 5)))
 
             # Remplacer les variables dans le document
+            # Remplacer les variables dans le document
             for paragraph in doc.paragraphs:
                 for key, value in student_data.items():
                     placeholder = f"{{{{{key}}}}}"
                     if placeholder in paragraph.text:
-                        paragraph.text = paragraph.text.replace(placeholder, str(value))
+                        if key.endswith("_Title")  or key.startswith("moyUE") or key.startswith("ECTSUE") or key.startswith("etatUE"):  # Si c'est un titre d'UE
+                            # Supprimer le placeholder
+                            paragraph.text = paragraph.text.replace(placeholder, "")
+                            # Ajouter le texte en gras
+                            run = paragraph.add_run(str(value))
+                            run.bold = True
+                        else:
+                            # Pour les autres variables, remplacement normal
+                            paragraph.text = paragraph.text.replace(placeholder, str(value))
 
             # Remplacer dans les tableaux
             for table in doc.tables:
@@ -710,7 +995,16 @@ async def get_word_template_endpoint():
                         for key, value in student_data.items():
                             placeholder = f"{{{{{key}}}}}"
                             if placeholder in cell.text:
-                                cell.text = cell.text.replace(placeholder, str(value))
+                                if key.endswith("_Title")  or key.startswith("moyUE") or key.startswith("ECTSUE") or key.startswith("etatUE"):  # Si c'est un titre d'UE
+                                    # Supprimer le placeholder
+                                    cell.text = cell.text.replace(placeholder, "")
+                                    # Ajouter le texte en gras dans le premier paragraphe de la cellule
+                                    run = cell.paragraphs[0].add_run(str(value))
+                                    run.bold = True
+                                else:
+                                    # Pour les autres variables, remplacement normal
+                                    cell.text = cell.text.replace(placeholder, str(value))
+
 
             # Sauvegarder le bulletin
             safe_nom = "".join(c for c in student_data["nomApprenant"] if c.isalnum() or c in (' ', '-', '_')).strip()
