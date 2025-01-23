@@ -14,6 +14,9 @@ from app.services.excel_service import match_template_and_get_word, process_exce
 from app.services.word_service import generate_bulletins_from_excel
 from prisma import Prisma
 from datetime import datetime
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import RGBColor
+
 
 router = APIRouter()
 
@@ -192,10 +195,11 @@ def get_etat_ue(etats: list, moyenne_ue: str = "") -> str:
     
     # Cas où il y a au moins un C
     if has_c:
-        return "VA" if moyenne >= 10 else "NV"
+        return "VA" if moyenne >= 10 else "NV"  # Correction ici
     
-    # Cas par défaut
-    return "NV"
+    # Cas par défaut : si moyenne >= 10, alors VA, sinon NV
+    return "VA" if moyenne >= 10 else "NV"  # Ajout de cette condition
+
 
 
 def calculate_ects_weighted_average(notes, ects_values):
@@ -974,16 +978,31 @@ async def get_word_template_endpoint():
 
             # Remplacer les variables dans le document
             # Remplacer les variables dans le document
+            # Remplacer les variables dans le document
             for paragraph in doc.paragraphs:
                 for key, value in student_data.items():
                     placeholder = f"{{{{{key}}}}}"
                     if placeholder in paragraph.text:
-                        if key.endswith("_Title")  or key.startswith("moyUE") or key.startswith("ECTSUE") or key.startswith("etatUE"):  # Si c'est un titre d'UE
+                        if key.endswith("_Title"):
                             # Supprimer le placeholder
                             paragraph.text = paragraph.text.replace(placeholder, "")
                             # Ajouter le texte en gras
                             run = paragraph.add_run(str(value))
                             run.bold = True
+                        elif key.startswith("moyUE") or key.startswith("ECTSUE") or key.startswith("etatUE"):
+                            # Supprimer le placeholder
+                            paragraph.text = paragraph.text.replace(placeholder, "")
+                            # Ajouter le texte en gras et centré
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = paragraph.add_run(str(value))
+                            run.bold = True
+                        elif key in ["moyenne", "moyenneECTS", "totaletat"]:
+                            # Supprimer le placeholder
+                            paragraph.text = paragraph.text.replace(placeholder, "")
+                            # Ajouter le texte en gras et en blanc
+                            run = paragraph.add_run(str(value))
+                            run.bold = True
+                            run.font.color.rgb = RGBColor(255, 255, 255)  # Blanc
                         else:
                             # Pour les autres variables, remplacement normal
                             paragraph.text = paragraph.text.replace(placeholder, str(value))
@@ -995,15 +1014,41 @@ async def get_word_template_endpoint():
                         for key, value in student_data.items():
                             placeholder = f"{{{{{key}}}}}"
                             if placeholder in cell.text:
-                                if key.endswith("_Title")  or key.startswith("moyUE") or key.startswith("ECTSUE") or key.startswith("etatUE"):  # Si c'est un titre d'UE
+                                if key.endswith("_Title"):
                                     # Supprimer le placeholder
                                     cell.text = cell.text.replace(placeholder, "")
                                     # Ajouter le texte en gras dans le premier paragraphe de la cellule
                                     run = cell.paragraphs[0].add_run(str(value))
                                     run.bold = True
+                                elif key.startswith("moyUE") or key.startswith("ECTSUE") or key.startswith("etatUE"):
+                                    # Supprimer le placeholder
+                                    cell.text = cell.text.replace(placeholder, "")
+                                    # Ajouter le texte en gras et centré
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                                    run = paragraph.add_run(str(value))
+                                    run.bold = True
+                                elif key in ["moyenne", "moyenneECTS", "totaletat"]:
+                                    # Supprimer le placeholder
+                                    cell.text = cell.text.replace(placeholder, "")
+                                    # Ajouter le texte en gras et en blanc dans le premier paragraphe de la cellule
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER  # Centrer le texte
+                                    run = paragraph.add_run(str(value))
+                                    run.bold = True
+                                    run.font.color.rgb = RGBColor(255, 255, 255)  # Blanc
+                                elif (key.startswith("note") or key.startswith("ECTS") or key.startswith("etat")):
+                                    # Supprimer le placeholder
+                                    cell.text = cell.text.replace(placeholder, "")
+                                    # Pour les notes, ECTS et états, centrer le texte
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER  # Centrer le texte
+                                    run = paragraph.add_run(str(value))
                                 else:
-                                    # Pour les autres variables, remplacement normal
+                                    # Pour les autres variables, remplacement normal sans centrage
                                     cell.text = cell.text.replace(placeholder, str(value))
+
+
 
 
             # Sauvegarder le bulletin
